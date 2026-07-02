@@ -42,7 +42,7 @@ export default async function handler(req, res) {
 
     const config = await loadConfig();
     const podcast = selectPodcast(config, podcastId);
-    const rows = await fetchSpreadsheetRows(podcast.csvUrl);
+    const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl));
     const filteredRows = filterRows(rows, podcast.id, episodeId);
     const relevantRows = rankRows(filteredRows, question).slice(0, MAX_CONTEXT_ROWS);
 
@@ -183,6 +183,48 @@ function parseCsv(csv) {
   });
 }
 
+function normalizeSpreadsheetRows(rows) {
+  if (!rows.length) return rows;
+
+  const first = rows[0];
+  const keyColumn = Object.keys(first).find((key) => key === "kunci" || key === "key");
+  const valueColumn = Object.keys(first).find((key) => key !== keyColumn && key !== "podcast_id" && key !== "episode_id");
+
+  if (!keyColumn || !valueColumn) return rows;
+
+  const sourceUrl = rows.find((row) => row[keyColumn] === "link_video")?.[valueColumn] || "";
+  const episodeTitle = rows.find((row) => row[keyColumn]?.trim() === "judul")?.[valueColumn] || "";
+  const podcastName = rows.find((row) => row[keyColumn] === "nama_siniar")?.[valueColumn] || "";
+  const episodeId = rows.find((row) => row[keyColumn] === "nomor_video")?.[valueColumn] || "";
+
+  return rows
+    .map((row) => {
+      const key = String(row[keyColumn] || "").trim();
+      const value = String(row[valueColumn] || "").trim();
+      if (!key || !value) return null;
+
+      return {
+        podcast_id: "kompas-siniar",
+        episode_id: episodeId || "utama",
+        episode_title: episodeTitle,
+        podcast_name: podcastName,
+        topic: humanizeKey(key),
+        question: `Apa ${humanizeKey(key)}?`,
+        answer: value,
+        keywords: `${humanizeKey(key)} ${value}`,
+        source_url: sourceUrl
+      };
+    })
+    .filter(Boolean);
+}
+
+function humanizeKey(value) {
+  return String(value || "")
+    .trim()
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ");
+}
+
 function normalizeHeader(header) {
   return String(header || "")
     .trim()
@@ -234,8 +276,15 @@ function tokenize(value) {
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/)
+      .map(normalizeToken)
       .filter((token) => token.length > 2 && !stopwords.has(token))
   );
+}
+
+function normalizeToken(token) {
+  return token
+    .replace(/(nya|lah|kah|pun)$/u, "")
+    .replace(/^(di|ke)(?=\p{L}{4,})/u, "");
 }
 
 function makeFallbackAnswer(rows) {
