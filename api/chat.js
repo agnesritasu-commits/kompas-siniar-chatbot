@@ -126,6 +126,12 @@ function getUtilityAnswer(question) {
 
   if (!text) return "";
 
+  const hasGreeting = /\b(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|assalamualaikum|permisi)\b/u.test(text);
+  const asksWellbeing = /\b(apa kabar|kabarmu|kabar|sehat|lagi apa)\b/u.test(text);
+  if (hasGreeting && asksWellbeing) {
+    return "Selamat datang. Terima kasih sudah bertanya. Saya siap membantu menyajikan informasi dari data episode ini secara singkat, sopan, dan informatif.";
+  }
+
   const greetingOnly = /^(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|permisi|met pagi|met siang|met sore|met malam)$/u;
   if (greetingOnly.test(text)) {
     return "Selamat datang. Saya akan membantu menjawab pertanyaan Anda tentang episode ini secara ringkas dan berdasarkan data spreadsheet. Anda dapat menanyakan narasumber, ringkasan, topik, atau istilah yang dibahas.";
@@ -272,11 +278,27 @@ function normalizeSpreadsheetRows(rows) {
         topic: humanizeKey(key),
         question: `Apa ${humanizeKey(key)}?`,
         answer: value,
-        keywords: `${humanizeKey(key)} ${value}`,
+        keywords: `${humanizeKey(key)} ${value} ${semanticKeywordsForKey(key)}`,
         source_url: sourceUrl
       };
     })
     .filter(Boolean);
+}
+
+function semanticKeywordsForKey(key) {
+  const normalized = String(key || "").trim().toLowerCase();
+  const keywords = {
+    ringkasan_isi_siniar: "ringkasan isi bahas dibahas pembahasan cerita inti episode topik utama pesan utama",
+    kenapa_siniar_ini_penting: "penting menarik alasan rekomendasi perlu didengar layak disimak bagus nilai manfaat",
+    deskripsi_episode: "deskripsi tentang episode pengantar konteks membahas",
+    poin_penting_siniar: "poin penting bagian struktur segmen alur pembahasan",
+    nama_narasumber: "narasumber pembicara tamu siapa",
+    profil_narasumber: "profil narasumber latar belakang jabatan profesi",
+    nama_host: "host pembawa acara pewara presenter",
+    profil_host: "profil host pembawa acara pewara presenter",
+    apa_itu_catenaccio: "catenaccio arti definisi maksud istilah taktik sepak bola"
+  };
+  return keywords[normalized] || "";
 }
 
 function humanizeKey(value) {

@@ -50,6 +50,12 @@ assert.equal(wellbeingRes.statusCode, 200);
 assert.equal(wellbeingRes.body.mode, "utility");
 assert.match(wellbeingRes.body.answer, /Terima kasih/);
 
+const mixedGreetingRes = createRes();
+await handler(createReq({ question: "Halo apa kabar?" }), mixedGreetingRes);
+assert.equal(mixedGreetingRes.statusCode, 200);
+assert.equal(mixedGreetingRes.body.mode, "utility");
+assert.match(mixedGreetingRes.body.answer, /singkat, sopan, dan informatif/);
+
 const identityRes = createRes();
 await handler(createReq({ question: "Kamu siapa?" }), identityRes);
 assert.equal(identityRes.statusCode, 200);
@@ -88,6 +94,7 @@ globalThis.fetch = async () => new Response([
   "nama_narasumber,Muhammad Chatib Basri",
   "profil_narasumber,Ekonom Senior",
   "ringkasan_isi_siniar,Chatib Basri membahas ekonomi Indonesia dengan metafora sepak bola.",
+  "kenapa_siniar_ini_penting,Pembahasan ini menarik karena menjelaskan ekonomi Indonesia dengan gaya bertutur yang ringan.",
   "apa_itu_catenaccio,Catenaccio adalah taktik sepak bola Italia yang mengutamakan pertahanan terorganisasi.",
   "kata_kunci,\"ekonomi\nchatib basri\nsepak bola\nindonesia\""
 ].join("\n"));
@@ -102,6 +109,11 @@ await handler(createReq({ question: "Apa itu catenaccio?", podcastId: "kompas-si
 assert.equal(catenaccioRes.statusCode, 200);
 assert.match(catenaccioRes.body.answer, /taktik sepak bola Italia/);
 assert.doesNotMatch(catenaccioRes.body.answer, /https:\/\/www\.kompas\.id/);
+
+const interestingRes = createRes();
+await handler(createReq({ question: "Menurut kamu episode ini menarik tidak?", podcastId: "kompas-siniar" }), interestingRes);
+assert.equal(interestingRes.statusCode, 200);
+assert.match(interestingRes.body.answer, /menarik/);
 
 globalThis.fetch = originalFetch;
 
