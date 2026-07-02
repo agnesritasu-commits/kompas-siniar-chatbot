@@ -114,6 +114,7 @@ const interestingRes = createRes();
 await handler(createReq({ question: "Menurut kamu episode ini menarik tidak?", podcastId: "kompas-siniar" }), interestingRes);
 assert.equal(interestingRes.statusCode, 200);
 assert.match(interestingRes.body.answer, /menarik/);
+assert.doesNotMatch(interestingRes.body.answer, /Piala Dunia 2026 bergulir/);
 
 globalThis.fetch = originalFetch;
 

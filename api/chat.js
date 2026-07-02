@@ -328,6 +328,7 @@ function filterRows(rows, podcastId, episodeId) {
 function rankRows(rows, question) {
   const queryTokens = Array.from(tokenize(question));
   const normalizedQuestion = normalizeText(question);
+  const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(normalizedQuestion);
 
   return rows
     .map((row) => {
@@ -346,6 +347,8 @@ function rankRows(rows, question) {
 
       if (topic && normalizedQuestion.includes(topic)) score += 12;
       if (topic.includes(normalizedQuestion)) score += 8;
+      if (evaluativeQuestion && topic === "kenapa siniar penting") score += 18;
+      if (evaluativeQuestion && topic === "deskripsi episode") score -= 8;
       if (LOW_VALUE_TOPICS.has(topic)) score -= 4;
 
       return { row, score };
