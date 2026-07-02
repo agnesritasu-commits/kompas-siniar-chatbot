@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Kompas Siniar Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,700;1,400&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="chat-card" aria-label="Chatbot Siniar Kompas">
+        <header class="chat-header">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="/assets/kompas-mark.jpeg" alt="">
+          </div>
+          <div class="header-copy">
+            <p class="eyebrow">Kompas Siniar</p>
+            <h1>Tanya episode ini</h1>
+            <p class="deck">Jawaban bersumber dari spreadsheet publik redaksi.</p>
+          </div>
+        </header>
+
+        <div class="privacy-note" role="note">
+          Jangan masukkan data pribadi seperti nomor telepon, email, alamat rumah, atau informasi sensitif.
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite">
+          <article class="message message--bot">
+            <div class="avatar" aria-hidden="true">K</div>
+            <div class="bubble">
+              Halo. Tanyakan hal yang tersedia di data episode, misalnya topik, narasumber, atau ringkasan pembahasan.
+            </div>
+          </article>
+        </div>
+
+        <form class="composer" id="chat-form">
+          <label class="sr-only" for="question">Pertanyaan</label>
+          <textarea id="question" name="question" rows="1" maxlength="600" placeholder="Tulis pertanyaan..." required></textarea>
+          <button type="submit" id="send-button" aria-label="Kirim pertanyaan">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.5 20.5 21 12 3.5 3.5v6.2L14 12 3.5 14.3v6.2Z"></path>
+            </svg>
+          </button>
+        </form>
+        <p class="status" id="status" role="status"></p>
+      </section>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

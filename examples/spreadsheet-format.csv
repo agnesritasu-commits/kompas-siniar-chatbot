@@ -1,0 +1,3 @@
+podcast_id,episode_id,episode_title,topic,question,answer,keywords,source_url
+kompas-siniar,utama,Contoh Episode,tema utama,Apa topik utama episode ini?,Topik utama episode ini adalah contoh isi yang berasal dari spreadsheet.,topik;tema;episode,https://www.kompas.id/
+kompas-siniar,utama,Contoh Episode,narasumber,Siapa narasumber episode ini?,Narasumber episode ini belum diisi pada contoh data.,narasumber;pembicara;tamu,https://www.kompas.id/

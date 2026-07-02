@@ -1,0 +1,14 @@
+{
+  "name": "kompas-siniar-chatbot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "vercel dev",
+    "check": "node work/smoke-test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
