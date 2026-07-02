@@ -41,7 +41,8 @@ const greetingRes = createRes();
 await handler(createReq({ question: "Halo" }), greetingRes);
 assert.equal(greetingRes.statusCode, 200);
 assert.equal(greetingRes.body.mode, "utility");
-assert.match(greetingRes.body.answer, /berdasarkan data spreadsheet/);
+assert.match(greetingRes.body.answer, /Selamat datang/);
+assert.match(greetingRes.body.answer, /ringkas/);
 
 const wellbeingRes = createRes();
 await handler(createReq({ question: "Apa kabar?" }), wellbeingRes);
@@ -54,12 +55,13 @@ await handler(createReq({ question: "Kamu siapa?" }), identityRes);
 assert.equal(identityRes.statusCode, 200);
 assert.equal(identityRes.body.mode, "utility");
 assert.match(identityRes.body.answer, /chatbot Kompas Siniar/);
+assert.match(identityRes.body.answer, /informatif/);
 
 const helpRes = createRes();
 await handler(createReq({ question: "Kamu bisa apa?" }), helpRes);
 assert.equal(helpRes.statusCode, 200);
 assert.equal(helpRes.body.mode, "utility");
-assert.match(helpRes.body.answer, /misalnya/);
+assert.match(helpRes.body.answer, /Contohnya/);
 
 globalThis.fetch = async () => new Response([
   "podcast_id,episode_id,episode_title,topic,question,answer,keywords,source_url",
