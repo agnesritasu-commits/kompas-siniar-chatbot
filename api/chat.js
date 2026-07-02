@@ -4,6 +4,7 @@ import path from "node:path";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const FALLBACK_OPENAI_MODEL = process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
+const FRIENDLY_MISSING_INFO_MESSAGE = "Maaf, informasi tersebut belum tersedia di data spreadsheet. Silakan tanyakan topik lain yang berkaitan dengan episode ini.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_QUESTION_LENGTH = 600;
 const LOW_VALUE_TOPICS = new Set(["nomor video", "judul", "link video", "tanggal tayang yyyymmdd", "bentuk video"]);
@@ -59,7 +60,7 @@ export default async function handler(req, res) {
 
     if (!relevantRows.length) {
       return res.status(200).json({
-        answer: MISSING_INFO_MESSAGE,
+        answer: FRIENDLY_MISSING_INFO_MESSAGE,
         mode: "fallback",
         sources: []
       });
@@ -125,19 +126,39 @@ function getUtilityAnswer(question) {
 
   if (!text) return "";
 
-  const greetingOnly = /^(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|permisi)$/u;
+  const greetingOnly = /^(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|permisi|met pagi|met siang|met sore|met malam)$/u;
   if (greetingOnly.test(text)) {
-    return "Halo. Saya bisa membantu menjawab pertanyaan tentang episode ini berdasarkan data spreadsheet. Coba tanyakan topik, narasumber, ringkasan, atau istilah yang dibahas.";
+    return "Halo, senang bertemu dengan Anda. Saya siap membantu menjawab pertanyaan tentang episode ini berdasarkan data spreadsheet. Anda bisa bertanya tentang narasumber, ringkasan, topik, atau istilah yang dibahas.";
   }
 
-  const thanksOnly = /^(terima kasih|makasih|thanks|thank you|oke|ok|sip)$/u;
+  const wellbeingOnly = /^(apa kabar|gimana kabarmu|bagaimana kabarmu|kabar baik|sehat|sehat kah|lagi apa)$/u;
+  if (wellbeingOnly.test(text)) {
+    return "Terima kasih sudah bertanya. Saya siap membantu Anda membaca informasi dari data episode ini. Silakan ajukan pertanyaan tentang narasumber, ringkasan, topik, atau istilah dalam siniar.";
+  }
+
+  const identityOnly = /^(siapa kamu|kamu siapa|ini apa|chatbot apa|apa ini)$/u;
+  if (identityOnly.test(text)) {
+    return "Saya chatbot Kompas Siniar. Saya membantu menjawab pertanyaan tentang episode ini dengan merujuk pada data spreadsheet yang tersedia.";
+  }
+
+  const thanksOnly = /^(terima kasih|makasih|thanks|thank you|oke|ok|sip|baik|mantap|siap|nice|bagus)$/u;
   if (thanksOnly.test(text)) {
-    return "Sama-sama. Silakan ajukan pertanyaan lain tentang episode ini.";
+    return "Sama-sama. Dengan senang hati, silakan ajukan pertanyaan lain tentang episode ini.";
   }
 
-  const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|cara pakai|mau tanya apa)$/u;
+  const apologyOnly = /^(maaf|sorry|maaf ya|maaf tadi salah|sori)$/u;
+  if (apologyOnly.test(text)) {
+    return "Tidak apa-apa. Silakan lanjutkan dengan pertanyaan tentang episode ini, dan saya akan menjawab berdasarkan data yang tersedia.";
+  }
+
+  const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|cara pakai|mau tanya apa|contoh pertanyaan|aku bisa tanya apa|saya bisa tanya apa)$/u;
   if (helpOnly.test(text)) {
-    return "Saya menjawab pertanyaan berdasarkan data spreadsheet episode. Contoh: siapa narasumbernya, apa ringkasan episode ini, apa itu catenaccio, atau kenapa siniar ini penting.";
+    return "Tentu. Anda bisa bertanya, misalnya: siapa narasumbernya, apa ringkasan episode ini, apa itu catenaccio, kenapa siniar ini penting, atau apa poin penting pembahasannya.";
+  }
+
+  const unsupportedChatOnly = /^(cerita dong|ngobrol dong|temani aku|ayo ngobrol|boleh ngobrol|aku bosan|lucu dong|kasih jokes|bercanda dong)$/u;
+  if (unsupportedChatOnly.test(text)) {
+    return "Tentu, saya bisa menemani percakapan dengan ramah. Namun, untuk jawaban informasi, saya hanya boleh memakai data spreadsheet episode ini. Silakan mulai dengan pertanyaan tentang episode atau topik yang dibahas.";
   }
 
   return "";
@@ -346,7 +367,18 @@ function makeFallbackAnswer(rows) {
     .filter(Boolean);
 
   if (!answers.length) return MISSING_INFO_MESSAGE;
-  return answers[0];
+  return makeFriendlyDataAnswer(answers[0]);
+}
+
+function makeFriendlyDataAnswer(answer) {
+  const text = String(answer || "").trim();
+  if (!text) return MISSING_INFO_MESSAGE;
+  if (text.length < 90) return text;
+  return `Berdasarkan data episode ini, ${lowercaseFirst(text)}`;
+}
+
+function lowercaseFirst(value) {
+  return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
 function rowToText(row) {
@@ -417,6 +449,8 @@ async function createOpenAIResponse(question, rows, podcast, model) {
                 `Jika jawaban tidak ada di konteks, jawab persis: ${MISSING_INFO_MESSAGE}`,
                 "Jangan mencari informasi di internet.",
                 "Jangan mengarang nama, tanggal, angka, kutipan, atau kesimpulan.",
+                "Gunakan nada sangat sopan, ramah, tenang, dan membantu.",
+                "Untuk sapaan atau percakapan ringan, jawab dengan hangat tanpa menambahkan fakta baru.",
                 "Jawaban harus ringkas, jelas, dan mudah dipahami pembaca.",
                 "Jangan gunakan Markdown heading atau teks tebal."
               ].join(" ")

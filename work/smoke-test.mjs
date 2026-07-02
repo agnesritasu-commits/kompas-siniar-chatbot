@@ -43,11 +43,23 @@ assert.equal(greetingRes.statusCode, 200);
 assert.equal(greetingRes.body.mode, "utility");
 assert.match(greetingRes.body.answer, /berdasarkan data spreadsheet/);
 
+const wellbeingRes = createRes();
+await handler(createReq({ question: "Apa kabar?" }), wellbeingRes);
+assert.equal(wellbeingRes.statusCode, 200);
+assert.equal(wellbeingRes.body.mode, "utility");
+assert.match(wellbeingRes.body.answer, /Terima kasih/);
+
+const identityRes = createRes();
+await handler(createReq({ question: "Kamu siapa?" }), identityRes);
+assert.equal(identityRes.statusCode, 200);
+assert.equal(identityRes.body.mode, "utility");
+assert.match(identityRes.body.answer, /chatbot Kompas Siniar/);
+
 const helpRes = createRes();
 await handler(createReq({ question: "Kamu bisa apa?" }), helpRes);
 assert.equal(helpRes.statusCode, 200);
 assert.equal(helpRes.body.mode, "utility");
-assert.match(helpRes.body.answer, /Contoh/);
+assert.match(helpRes.body.answer, /misalnya/);
 
 globalThis.fetch = async () => new Response([
   "podcast_id,episode_id,episode_title,topic,question,answer,keywords,source_url",
@@ -64,7 +76,7 @@ assert.match(fallbackRes.body.answer, /Redaksi Kompas/);
 const missingRes = createRes();
 await handler(createReq({ question: "Berapa harga tiket konser?", podcastId: "kompas-siniar" }), missingRes);
 assert.equal(missingRes.statusCode, 200);
-assert.equal(missingRes.body.answer, "Informasi tersebut belum tersedia di data spreadsheet.");
+assert.match(missingRes.body.answer, /belum tersedia di data spreadsheet/);
 
 globalThis.fetch = async () => new Response([
   "kunci,Bahasa Indonesia",
