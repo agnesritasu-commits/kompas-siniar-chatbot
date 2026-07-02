@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
+const FALLBACK_OPENAI_MODEL = process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_QUESTION_LENGTH = 600;
@@ -68,8 +69,9 @@ export default async function handler(req, res) {
     try {
       const answer = await askOpenAI(question, relevantRows, podcast);
       return res.status(200).json({
-        answer: answer || fallbackAnswer,
+        answer: answer.text || fallbackAnswer,
         mode: "openai",
+        model: answer.model,
         sources: formatSources(relevantRows)
       });
     } catch (error) {
@@ -328,6 +330,23 @@ function formatSources(rows) {
 }
 
 async function askOpenAI(question, rows, podcast) {
+  const models = Array.from(new Set([MODEL, FALLBACK_OPENAI_MODEL].filter(Boolean)));
+  let lastError;
+
+  for (const model of models) {
+    try {
+      const text = await createOpenAIResponse(question, rows, podcast, model);
+      return { text, model };
+    } catch (error) {
+      lastError = error;
+      console.error(`OpenAI model failed (${model}):`, error);
+    }
+  }
+
+  throw lastError;
+}
+
+async function createOpenAIResponse(question, rows, podcast, model) {
   const context = rows.map((row, index) => {
     return [
       `Data ${index + 1}:`,
@@ -348,7 +367,7 @@ async function askOpenAI(question, rows, podcast) {
       "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       input: [
         {
           role: "system",
@@ -381,7 +400,8 @@ async function askOpenAI(question, rows, podcast) {
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    const body = await response.text();
+    throw new Error(`OpenAI API error: ${response.status} ${body.slice(0, 240)}`);
   }
 
   const data = await response.json();
