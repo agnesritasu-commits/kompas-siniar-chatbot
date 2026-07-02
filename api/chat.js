@@ -347,8 +347,8 @@ function rankRows(rows, question) {
 
       if (topic && normalizedQuestion.includes(topic)) score += 12;
       if (topic.includes(normalizedQuestion)) score += 8;
-      if (evaluativeQuestion && topic === "kenapa siniar penting") score += 18;
-      if (evaluativeQuestion && topic === "deskripsi episode") score -= 8;
+      if (evaluativeQuestion && topic === "kenapa siniar penting") score += 40;
+      if (evaluativeQuestion && topic === "deskripsi episode") score -= 18;
       if (LOW_VALUE_TOPICS.has(topic)) score -= 4;
 
       return { row, score };
