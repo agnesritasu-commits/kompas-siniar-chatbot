@@ -58,9 +58,11 @@ globalThis.fetch = async () => new Response([
   "kunci,Bahasa Indonesia",
   "nomor_video,video_1",
   "judul,Chatib Basri: Piala Dunia 2026 dan Catenaccio Ekonomi Indonesia",
+  "link_video,https://www.kompas.id/artikel/contoh",
   "nama_narasumber,Muhammad Chatib Basri",
   "profil_narasumber,Ekonom Senior",
   "ringkasan_isi_siniar,Chatib Basri membahas ekonomi Indonesia dengan metafora sepak bola.",
+  "apa_itu_catenaccio,Catenaccio adalah taktik sepak bola Italia yang mengutamakan pertahanan terorganisasi.",
   "kata_kunci,\"ekonomi\nchatib basri\nsepak bola\nindonesia\""
 ].join("\n"));
 
@@ -68,6 +70,12 @@ const keyValueRes = createRes();
 await handler(createReq({ question: "Siapa narasumbernya?", podcastId: "kompas-siniar" }), keyValueRes);
 assert.equal(keyValueRes.statusCode, 200);
 assert.match(keyValueRes.body.answer, /Muhammad Chatib Basri/);
+
+const catenaccioRes = createRes();
+await handler(createReq({ question: "Apa itu catenaccio?", podcastId: "kompas-siniar" }), catenaccioRes);
+assert.equal(catenaccioRes.statusCode, 200);
+assert.match(catenaccioRes.body.answer, /taktik sepak bola Italia/);
+assert.doesNotMatch(catenaccioRes.body.answer, /https:\/\/www\.kompas\.id/);
 
 globalThis.fetch = originalFetch;
 

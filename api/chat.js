@@ -5,6 +5,7 @@ const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_QUESTION_LENGTH = 600;
+const LOW_VALUE_TOPICS = new Set(["nomor video", "judul", "link video", "tanggal tayang yyyymmdd", "bentuk video"]);
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const phonePattern = /(?:\+?\d[\s().-]?){8,}\d/;
@@ -244,25 +245,28 @@ function filterRows(rows, podcastId, episodeId) {
 
 function rankRows(rows, question) {
   const queryTokens = Array.from(tokenize(question));
+  const normalizedQuestion = normalizeText(question);
 
   return rows
     .map((row) => {
-      const haystack = [
-        row.episode_title,
-        row.topic,
-        row.question,
-        row.answer,
-        row.keywords
-      ].join(" ");
-      const rowTokens = tokenize(haystack);
-      const score = queryTokens.reduce((total, token) => total + (rowTokens.has(token) ? 1 : 0), 0);
-      const keywordScore = String(row.keywords || "")
-        .toLowerCase()
-        .split(/[;,]/)
-        .some((keyword) => keyword.trim() && question.toLowerCase().includes(keyword.trim()))
-        ? 2
-        : 0;
-      return { row, score: score + keywordScore };
+      const topic = normalizeText(row.topic);
+      const questionText = normalizeText(row.question);
+      const answer = normalizeText(row.answer || row.ringkasan || row.summary || row.content);
+      const keywords = normalizeText(row.keywords);
+      const episodeTitle = normalizeText(row.episode_title);
+
+      let score = 0;
+      score += weightedTokenScore(queryTokens, topic, 10);
+      score += weightedTokenScore(queryTokens, questionText, 7);
+      score += weightedTokenScore(queryTokens, keywords, 4);
+      score += weightedTokenScore(queryTokens, answer, 2);
+      score += weightedTokenScore(queryTokens, episodeTitle, 0.4);
+
+      if (topic && normalizedQuestion.includes(topic)) score += 12;
+      if (topic.includes(normalizedQuestion)) score += 8;
+      if (LOW_VALUE_TOPICS.has(topic)) score -= 4;
+
+      return { row, score };
     })
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -281,6 +285,16 @@ function tokenize(value) {
   );
 }
 
+function normalizeText(value) {
+  return Array.from(tokenize(value)).join(" ");
+}
+
+function weightedTokenScore(queryTokens, value, weight) {
+  if (!value) return 0;
+  const valueTokens = new Set(value.split(/\s+/).filter(Boolean));
+  return queryTokens.reduce((total, token) => total + (valueTokens.has(token) ? weight : 0), 0);
+}
+
 function normalizeToken(token) {
   return token
     .replace(/(nya|lah|kah|pun)$/u, "")
@@ -293,7 +307,7 @@ function makeFallbackAnswer(rows) {
     .filter(Boolean);
 
   if (!answers.length) return MISSING_INFO_MESSAGE;
-  return answers.slice(0, 3).join("\n\n");
+  return answers[0];
 }
 
 function rowToText(row) {
