@@ -42,6 +42,15 @@ export default async function handler(req, res) {
       });
     }
 
+    const utilityAnswer = getUtilityAnswer(question);
+    if (utilityAnswer) {
+      return res.status(200).json({
+        answer: utilityAnswer,
+        mode: "utility",
+        sources: []
+      });
+    }
+
     const config = await loadConfig();
     const podcast = selectPodcast(config, podcastId);
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl));
@@ -104,6 +113,34 @@ function setCors(req, res) {
 
 function containsSensitiveData(value) {
   return emailPattern.test(value) || phonePattern.test(value);
+}
+
+function getUtilityAnswer(question) {
+  const text = String(question || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text) return "";
+
+  const greetingOnly = /^(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|permisi)$/u;
+  if (greetingOnly.test(text)) {
+    return "Halo. Saya bisa membantu menjawab pertanyaan tentang episode ini berdasarkan data spreadsheet. Coba tanyakan topik, narasumber, ringkasan, atau istilah yang dibahas.";
+  }
+
+  const thanksOnly = /^(terima kasih|makasih|thanks|thank you|oke|ok|sip)$/u;
+  if (thanksOnly.test(text)) {
+    return "Sama-sama. Silakan ajukan pertanyaan lain tentang episode ini.";
+  }
+
+  const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|cara pakai|mau tanya apa)$/u;
+  if (helpOnly.test(text)) {
+    return "Saya menjawab pertanyaan berdasarkan data spreadsheet episode. Contoh: siapa narasumbernya, apa ringkasan episode ini, apa itu catenaccio, atau kenapa siniar ini penting.";
+  }
+
+  return "";
 }
 
 async function readJson(req) {

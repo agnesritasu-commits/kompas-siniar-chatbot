@@ -37,6 +37,18 @@ const sensitiveRes = createRes();
 await handler(createReq({ question: "Email saya test@example.com" }), sensitiveRes);
 assert.equal(sensitiveRes.statusCode, 400);
 
+const greetingRes = createRes();
+await handler(createReq({ question: "Halo" }), greetingRes);
+assert.equal(greetingRes.statusCode, 200);
+assert.equal(greetingRes.body.mode, "utility");
+assert.match(greetingRes.body.answer, /berdasarkan data spreadsheet/);
+
+const helpRes = createRes();
+await handler(createReq({ question: "Kamu bisa apa?" }), helpRes);
+assert.equal(helpRes.statusCode, 200);
+assert.equal(helpRes.body.mode, "utility");
+assert.match(helpRes.body.answer, /Contoh/);
+
 globalThis.fetch = async () => new Response([
   "podcast_id,episode_id,episode_title,topic,question,answer,keywords,source_url",
   "kompas-siniar,utama,Episode Uji,narasumber,Siapa narasumber?,Narasumbernya adalah Redaksi Kompas.,narasumber;tamu,https://www.kompas.id/",
