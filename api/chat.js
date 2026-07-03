@@ -28,6 +28,7 @@ export default async function handler(req, res) {
     const question = String(body.question || "").trim();
     const podcastId = String(body.podcastId || "").trim();
     const episodeId = String(body.episodeId || "").trim();
+    const history = sanitizeHistory(body.history);
 
     if (!question) {
       return res.status(400).json({ error: "Pertanyaan belum diisi." });
@@ -56,7 +57,9 @@ export default async function handler(req, res) {
     const podcast = selectPodcast(config, podcastId);
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl));
     const filteredRows = filterRows(rows, podcast.id, episodeId);
-    const relevantRows = rankRows(filteredRows, question).slice(0, MAX_CONTEXT_ROWS);
+    const followUpContext = getFollowUpContext(question, history);
+    const rankingQuestion = resolveFollowUpQuestion(question, followUpContext);
+    const relevantRows = rankRows(filteredRows, rankingQuestion).slice(0, MAX_CONTEXT_ROWS);
 
     if (!relevantRows.length) {
       return res.status(200).json({
@@ -66,7 +69,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const fallbackAnswer = makeFallbackAnswer(relevantRows);
+    const fallbackAnswer = makeFallbackAnswer(relevantRows, filteredRows, followUpContext);
 
     if (!process.env.OPENAI_API_KEY) {
       return res.status(200).json({
@@ -114,6 +117,60 @@ function setCors(req, res) {
 
 function containsSensitiveData(value) {
   return emailPattern.test(value) || phonePattern.test(value);
+}
+
+function sanitizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history.slice(-8).map((item) => ({
+    role: item?.role === "assistant" ? "assistant" : "user",
+    content: String(item?.content || "").slice(0, 700),
+    sources: Array.isArray(item?.sources) ? item.sources.slice(0, 3) : []
+  }));
+}
+
+function getFollowUpContext(question, history) {
+  const text = normalizeText(question);
+  const pronounQuestion = /\b(dia|ia|beliau|orang itu|tokoh itu|narasumber itu|host itu)\b/u.test(text);
+  if (!pronounQuestion || !history.length) return null;
+
+  const recentAssistant = [...history].reverse().find((item) => item.role === "assistant");
+  const recentSources = recentAssistant?.sources || [];
+  const sourceTopics = recentSources.map((source) => normalizeText(source.topic)).join(" ");
+  const recentAnswer = recentAssistant?.content || "";
+
+  if (sourceTopics.includes("narasumber") || /Muhammad Chatib Basri/i.test(recentAnswer)) {
+    return {
+      target: "narasumber",
+      label: extractPersonName(recentAnswer) || "Muhammad Chatib Basri"
+    };
+  }
+
+  if (sourceTopics.includes("host") || /FX Agung/i.test(recentAnswer)) {
+    return {
+      target: "host",
+      label: extractPersonName(recentAnswer) || "FX Agung Timbul Laksana"
+    };
+  }
+
+  return null;
+}
+
+function resolveFollowUpQuestion(question, followUpContext) {
+  if (!followUpContext) return question;
+  if (followUpContext.target === "narasumber") {
+    return `${question} profil narasumber alasan pemilihan narasumber ${followUpContext.label}`;
+  }
+  if (followUpContext.target === "host") {
+    return `${question} profil host nama host ${followUpContext.label}`;
+  }
+  return question;
+}
+
+function extractPersonName(value) {
+  const text = String(value || "");
+  if (/Muhammad Chatib Basri/i.test(text)) return "Muhammad Chatib Basri";
+  if (/FX Agung/i.test(text)) return "FX Agung Timbul Laksana";
+  return "";
 }
 
 function getUtilityAnswer(question) {
@@ -393,13 +450,47 @@ function normalizeToken(token) {
     .replace(/^(di|ke)(?=\p{L}{4,})/u, "");
 }
 
-function makeFallbackAnswer(rows) {
+function makeFallbackAnswer(rows, allRows = [], followUpContext = null) {
+  if (followUpContext?.target === "narasumber") {
+    return makePersonAnswer(allRows, "narasumber");
+  }
+
+  if (followUpContext?.target === "host") {
+    return makePersonAnswer(allRows, "host");
+  }
+
   const answers = rows
     .map((row) => row.answer || row.ringkasan || row.summary || row.content || "")
     .filter(Boolean);
 
   if (!answers.length) return MISSING_INFO_MESSAGE;
   return makeFriendlyDataAnswer(answers[0]);
+}
+
+function makePersonAnswer(rows, type) {
+  const name = findAnswerByTopic(rows, `nama ${type}`);
+  const profile = findAnswerByTopic(rows, `profil ${type}`);
+  const reason = type === "narasumber" ? findAnswerByTopic(rows, "alasan pemilihan narasumber") : "";
+
+  if (!name && !profile && !reason) return MISSING_INFO_MESSAGE;
+
+  if (type === "narasumber") {
+    return [
+      name ? `${name} adalah narasumber dalam episode ini.` : "",
+      profile ? `Profil: ${profile}.` : "",
+      reason ? `Alasan pemilihan narasumber: ${reason}` : ""
+    ].filter(Boolean).join(" ");
+  }
+
+  return [
+    name ? `${name} adalah host dalam episode ini.` : "",
+    profile || ""
+  ].filter(Boolean).join(" ");
+}
+
+function findAnswerByTopic(rows, topic) {
+  const wanted = normalizeText(topic);
+  return rows.find((row) => normalizeText(row.topic) === wanted)?.answer || "";
 }
 
 function makeFriendlyDataAnswer(answer) {

@@ -104,6 +104,26 @@ await handler(createReq({ question: "Siapa narasumbernya?", podcastId: "kompas-s
 assert.equal(keyValueRes.statusCode, 200);
 assert.match(keyValueRes.body.answer, /Muhammad Chatib Basri/);
 
+const followUpRes = createRes();
+await handler(createReq({
+  question: "Siapa dia?",
+  podcastId: "kompas-siniar",
+  history: [
+    {
+      role: "user",
+      content: "Siapa narasumbernya?"
+    },
+    {
+      role: "assistant",
+      content: keyValueRes.body.answer,
+      sources: keyValueRes.body.sources
+    }
+  ]
+}), followUpRes);
+assert.equal(followUpRes.statusCode, 200);
+assert.match(followUpRes.body.answer, /Muhammad Chatib Basri/);
+assert.doesNotMatch(followUpRes.body.answer, /FX Agung/);
+
 const catenaccioRes = createRes();
 await handler(createReq({ question: "Apa itu catenaccio?", podcastId: "kompas-siniar" }), catenaccioRes);
 assert.equal(catenaccioRes.statusCode, 200);

@@ -11,6 +11,7 @@ const episodeId = params.get("episode") || "";
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const phonePattern = /(?:\+?\d[\s().-]?){8,}\d/;
 const privacyWarning = "Jangan kirim data pribadi seperti email, nomor telepon, alamat rumah, atau informasi sensitif.";
+const conversationHistory = [];
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -38,7 +39,8 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         question,
         podcastId,
-        episodeId
+        episodeId,
+        history: conversationHistory.slice(-6)
       })
     });
 
@@ -50,6 +52,8 @@ form.addEventListener("submit", async (event) => {
     }
 
     appendMessage(data.answer || "Informasi tersebut belum tersedia di data spreadsheet.", "bot");
+    rememberTurn("user", question);
+    rememberTurn("assistant", data.answer || "", data.sources || []);
     setStatus(data.mode === "fallback" ? "Jawaban memakai pencocokan kata kunci dari spreadsheet." : "");
   } catch (error) {
     typing.remove();
@@ -72,6 +76,18 @@ input.addEventListener("keydown", (event) => {
 
 function containsSensitiveData(value) {
   return emailPattern.test(value) || phonePattern.test(value);
+}
+
+function rememberTurn(role, content, sources = []) {
+  if (!content) return;
+  conversationHistory.push({
+    role,
+    content: String(content).slice(0, 700),
+    sources: sources.slice(0, 3)
+  });
+  if (conversationHistory.length > 8) {
+    conversationHistory.splice(0, conversationHistory.length - 8);
+  }
 }
 
 function appendMessage(text, type) {
