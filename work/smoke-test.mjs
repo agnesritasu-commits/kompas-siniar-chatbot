@@ -181,6 +181,41 @@ assert.match(weakMatchRes.body.answer, /Kompas Siniar/);
 assert.match(weakMatchRes.body.answer, /episode ini berjudul/);
 assert.match(weakMatchRes.body.answer, /membahas/);
 
+process.env.OPENAI_API_KEY = "test-key";
+globalThis.fetch = async (url) => {
+  if (String(url).includes("api.openai.com")) {
+    return new Response(JSON.stringify({
+      output_text: "Informasi tersebut belum tersedia di data spreadsheet."
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  return new Response([
+    "kunci,Bahasa Indonesia",
+    "nama_siniar,Kompas Siniar",
+    "nomor_video,video_1",
+    "judul,Chatib Basri: Piala Dunia 2026 dan Catenaccio Ekonomi Indonesia",
+    "link_video,https://www.kompas.id/artikel/contoh",
+    "nama_narasumber,Muhammad Chatib Basri",
+    "profil_narasumber,Ekonom Senior",
+    "alasan_pemilihan_narasumber,Chatib dipilih karena ekonom senior dan penggemar sepak bola.",
+    "nama_host,FX Agung Timbul Laksana",
+    "profil_host,FX Agung Timbul Laksana adalah wartawan ekonomi Harian Kompas dan Kompas.id.",
+    "ringkasan_isi_siniar,Chatib Basri membahas ekonomi Indonesia dengan metafora sepak bola."
+  ].join("\n"));
+};
+
+const openAiMissingRes = createRes();
+await handler(createReq({ question: "Apa alasan pemilihan narasumber?", podcastId: "kompas-siniar" }), openAiMissingRes);
+assert.equal(openAiMissingRes.statusCode, 200);
+assert.equal(openAiMissingRes.body.mode, "openai");
+assert.match(openAiMissingRes.body.answer, /Kompas Siniar/);
+assert.match(openAiMissingRes.body.answer, /episode ini berjudul/);
+assert.deepEqual(openAiMissingRes.body.sources, []);
+delete process.env.OPENAI_API_KEY;
+
 globalThis.fetch = originalFetch;
 
 console.log("Smoke tests passed.");

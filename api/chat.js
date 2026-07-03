@@ -92,11 +92,15 @@ export default async function handler(req, res) {
 
     try {
       const answer = await askOpenAI(question, relevantRows, podcast, fallbackAnswer);
+      const finalAnswer = isMissingInfoAnswer(answer.text)
+        ? makeMissingInfoAnswer(filteredRows, podcast)
+        : answer.text || fallbackAnswer;
+
       return res.status(200).json({
-        answer: answer.text || fallbackAnswer,
+        answer: finalAnswer,
         mode: "openai",
         model: answer.model,
-        sources: formatSources(relevantRows)
+        sources: isMissingInfoAnswer(answer.text) ? [] : formatSources(relevantRows)
       });
     } catch (error) {
       console.error("OpenAI unavailable, using fallback:", error);
@@ -602,6 +606,12 @@ function makeMissingInfoAnswer(rows = [], podcast = {}) {
     shortSummary ? `Secara umum, episode ini membahas ${shortSummary}` : "",
     "Silakan ajukan pertanyaan lain tentang data episode yang tersedia."
   ].filter(Boolean).join(" ");
+}
+
+function isMissingInfoAnswer(value) {
+  const text = normalizeLooseText(value);
+  return text.includes("informasi tersebut belum tersedia di data spreadsheet") ||
+    text.includes("informasi itu belum tersedia di data spreadsheet");
 }
 
 function summarizeForFallback(value) {
