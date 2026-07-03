@@ -4,7 +4,6 @@ import path from "node:path";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const FALLBACK_OPENAI_MODEL = process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
-const FRIENDLY_MISSING_INFO_MESSAGE = "Maaf, informasi itu belum tersedia di data spreadsheet. Saya hanya dapat menjawab berdasarkan data episode yang tersedia.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_QUESTION_LENGTH = 600;
 const MIN_RELEVANCE_SCORE = 6;
@@ -75,7 +74,7 @@ export default async function handler(req, res) {
 
     if (!relevantRows.length) {
       return res.status(200).json({
-        answer: FRIENDLY_MISSING_INFO_MESSAGE,
+        answer: makeMissingInfoAnswer(filteredRows, podcast),
         mode: "fallback",
         sources: []
       });
@@ -554,7 +553,7 @@ function makeFallbackAnswer(rows, allRows = [], followUpContext = null) {
     .map((row) => row.answer || row.ringkasan || row.summary || row.content || "")
     .filter(Boolean);
 
-  if (!answers.length) return MISSING_INFO_MESSAGE;
+  if (!answers.length) return makeMissingInfoAnswer(allRows);
   return makeFriendlyDataAnswer(answers[0]);
 }
 
@@ -586,9 +585,32 @@ function findAnswerByTopic(rows, topic) {
 
 function makeFriendlyDataAnswer(answer) {
   const text = String(answer || "").trim();
-  if (!text) return FRIENDLY_MISSING_INFO_MESSAGE;
+  if (!text) return MISSING_INFO_MESSAGE;
   if (text.length < 90) return text;
   return `Berdasarkan data episode ini: ${text}`;
+}
+
+function makeMissingInfoAnswer(rows = [], podcast = {}) {
+  const podcastName = findAnswerByTopic(rows, "nama siniar") || podcast.title || podcast.name || "siniar ini";
+  const episodeTitle = findAnswerByTopic(rows, "judul");
+  const summary = findAnswerByTopic(rows, "ringkasan isi siniar") || findAnswerByTopic(rows, "deskripsi episode");
+  const shortSummary = summarizeForFallback(summary);
+
+  return [
+    `Maaf, informasi itu belum tersedia di data spreadsheet ${podcastName}.`,
+    episodeTitle ? `Untuk konteks, episode ini berjudul "${episodeTitle}".` : "",
+    shortSummary ? `Secara umum, episode ini membahas ${shortSummary}` : "",
+    "Silakan ajukan pertanyaan lain tentang data episode yang tersedia."
+  ].filter(Boolean).join(" ");
+}
+
+function summarizeForFallback(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const sentence = text.split(/(?<=[.!?])\s+/u).find(Boolean) || text;
+  const words = sentence.split(/\s+/).slice(0, 28).join(" ");
+  const suffix = sentence.split(/\s+/).length > 28 ? "..." : "";
+  return `${words}${suffix}`;
 }
 
 function rowToText(row) {

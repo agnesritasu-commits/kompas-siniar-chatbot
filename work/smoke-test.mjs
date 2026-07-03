@@ -88,6 +88,7 @@ assert.match(missingRes.body.answer, /belum tersedia di data spreadsheet/);
 
 globalThis.fetch = async () => new Response([
   "kunci,Bahasa Indonesia",
+  "nama_siniar,Kompas Siniar",
   "nomor_video,video_1",
   "judul,Chatib Basri: Piala Dunia 2026 dan Catenaccio Ekonomi Indonesia",
   "link_video,https://www.kompas.id/artikel/contoh",
@@ -176,6 +177,9 @@ const weakMatchRes = createRes();
 await handler(createReq({ question: "Apa pendapat Chatib tentang makan siang gratis?", podcastId: "kompas-siniar" }), weakMatchRes);
 assert.equal(weakMatchRes.statusCode, 200);
 assert.match(weakMatchRes.body.answer, /belum tersedia di data spreadsheet/);
+assert.match(weakMatchRes.body.answer, /Kompas Siniar/);
+assert.match(weakMatchRes.body.answer, /episode ini berjudul/);
+assert.match(weakMatchRes.body.answer, /membahas/);
 
 globalThis.fetch = originalFetch;
 
