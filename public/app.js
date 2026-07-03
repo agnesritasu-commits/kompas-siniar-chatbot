@@ -51,7 +51,7 @@ form.addEventListener("submit", async (event) => {
       throw new Error(data.error || "Pertanyaan belum bisa diproses.");
     }
 
-    appendMessage(data.answer || "Informasi tersebut belum tersedia di data spreadsheet.", "bot");
+    appendMessage(data.answer || "Informasi tersebut belum tersedia di data spreadsheet.", "bot", data.sources || []);
     rememberTurn("user", question);
     rememberTurn("assistant", data.answer || "", data.sources || []);
     setStatus(data.mode === "fallback" ? "Jawaban memakai pencocokan kata kunci dari spreadsheet." : "");
@@ -90,7 +90,7 @@ function rememberTurn(role, content, sources = []) {
   }
 }
 
-function appendMessage(text, type) {
+function appendMessage(text, type, sources = []) {
   const article = document.createElement("article");
   article.className = `message message--${type}`;
 
@@ -105,10 +105,57 @@ function appendMessage(text, type) {
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.textContent = text;
+
+  if (type === "bot") {
+    const sourceLinks = getSourceLinks(sources);
+    if (sourceLinks.length) {
+      bubble.append(createSourceLinks(sourceLinks));
+    }
+  }
+
   article.append(bubble);
   messages.append(article);
   scrollToLatest();
   return article;
+}
+
+function getSourceLinks(sources = []) {
+  const seen = new Set();
+  return sources
+    .map((source) => ({
+      url: String(source.sourceUrl || "").trim(),
+      title: String(source.episodeTitle || "").trim()
+    }))
+    .filter((source) => {
+      if (!source.url || seen.has(source.url)) return false;
+      try {
+        const url = new URL(source.url);
+        if (!["http:", "https:"].includes(url.protocol)) return false;
+      } catch {
+        return false;
+      }
+      seen.add(source.url);
+      return true;
+    })
+    .slice(0, 1);
+}
+
+function createSourceLinks(sources) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "source-links";
+
+  sources.forEach((source) => {
+    const link = document.createElement("a");
+    link.className = "source-link";
+    link.href = source.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Baca episode";
+    link.setAttribute("aria-label", source.title ? `Baca episode: ${source.title}` : "Baca episode");
+    wrapper.append(link);
+  });
+
+  return wrapper;
 }
 
 function appendTyping() {

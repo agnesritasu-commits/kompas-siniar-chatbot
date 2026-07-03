@@ -201,6 +201,37 @@ h1 {
   border-bottom-right-radius: 2px;
 }
 
+.source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45em;
+  margin-top: 0.72em;
+  padding-top: 0.68em;
+  border-top: 1px solid rgba(0, 85, 154, 0.14);
+}
+
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2em;
+  padding: 0.28em 0.62em;
+  border: 1px solid rgba(0, 85, 154, 0.26);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--blue);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.source-link:hover,
+.source-link:focus-visible {
+  border-color: var(--blue);
+  background: var(--row-hover);
+  outline: none;
+}
+
 .composer {
   display: flex;
   align-items: flex-end;
