@@ -144,6 +144,11 @@ assert.equal(hostContentRes.statusCode, 200);
 assert.match(hostContentRes.body.answer, /membahas ekonomi Indonesia/);
 assert.doesNotMatch(hostContentRes.body.answer, /^FX Agung Timbul Laksana$/);
 
+const weakMatchRes = createRes();
+await handler(createReq({ question: "Apa pendapat Chatib tentang makan siang gratis?", podcastId: "kompas-siniar" }), weakMatchRes);
+assert.equal(weakMatchRes.statusCode, 200);
+assert.match(weakMatchRes.body.answer, /belum tersedia di data spreadsheet/);
+
 globalThis.fetch = originalFetch;
 
 console.log("Smoke tests passed.");

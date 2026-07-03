@@ -7,6 +7,7 @@ const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsh
 const FRIENDLY_MISSING_INFO_MESSAGE = "Maaf, informasi itu belum tersedia di data spreadsheet. Saya hanya dapat menjawab berdasarkan data episode yang tersedia.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_QUESTION_LENGTH = 600;
+const MIN_RELEVANCE_SCORE = 6;
 const LOW_VALUE_TOPICS = new Set(["nomor video", "judul", "link video", "tanggal tayang yyyymmdd", "bentuk video"]);
 const CONTENT_TOPICS = new Set([
   "ringkasan isi siniar",
@@ -67,7 +68,9 @@ export default async function handler(req, res) {
     const filteredRows = filterRows(rows, podcast.id, episodeId);
     const followUpContext = getFollowUpContext(question, history);
     const rankingQuestion = resolveFollowUpQuestion(question, followUpContext);
-    const relevantRows = rankRows(filteredRows, rankingQuestion).slice(0, MAX_CONTEXT_ROWS);
+    const relevantRows = rankRows(filteredRows, rankingQuestion, {
+      knownEntityReference: hasKnownEntityReference(rankingQuestion, filteredRows)
+    }).slice(0, MAX_CONTEXT_ROWS);
 
     if (!relevantRows.length) {
       return res.status(200).json({
@@ -88,7 +91,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      const answer = await askOpenAI(question, relevantRows, podcast);
+      const answer = await askOpenAI(question, relevantRows, podcast, fallbackAnswer);
       return res.status(200).json({
         answer: answer.text || fallbackAnswer,
         mode: "openai",
@@ -390,7 +393,7 @@ function filterRows(rows, podcastId, episodeId) {
   });
 }
 
-function rankRows(rows, question) {
+function rankRows(rows, question, options = {}) {
   const queryTokens = Array.from(tokenize(question));
   const normalizedQuestion = normalizeText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(normalizedQuestion);
@@ -429,9 +432,19 @@ function rankRows(rows, question) {
       if (evaluativeQuestion && topic === "deskripsi episode") score -= 18;
       if (LOW_VALUE_TOPICS.has(topic)) score -= 4;
 
-      return { row, score };
+      const matchedTokens = countMatchedTokens(queryTokens, [topic, questionText, keywords, answer, episodeTitle]);
+      const directTopicMatch = topic && [...tokenize(topic)].some((token) => queryTokens.includes(token));
+      const relevantEnough = score >= MIN_RELEVANCE_SCORE && (
+        matchedTokens >= 2 ||
+        directTopicMatch ||
+        personQuestion ||
+        evaluativeQuestion ||
+        (contentQuestion && options.knownEntityReference)
+      );
+
+      return { row, score, relevantEnough };
     })
-    .filter((item) => item.score > 0)
+    .filter((item) => item.relevantEnough)
     .sort((a, b) => b.score - a.score)
     .map((item) => item.row);
 }
@@ -442,6 +455,16 @@ function isContentQuestion(normalizedQuestion) {
 
 function isPersonQuestion(normalizedQuestion) {
   return /\b(siapa|profil|latar|belakang|jabatan|profesi|narasumber|host|pembawa|pewara)\b/u.test(normalizedQuestion);
+}
+
+function hasKnownEntityReference(question, rows) {
+  const queryTokens = tokenize(question);
+  const personRows = rows.filter((row) => PERSON_TOPICS.has(normalizeText(row.topic)));
+
+  return personRows.some((row) => {
+    const answerTokens = tokenize(row.answer || "");
+    return [...answerTokens].some((token) => queryTokens.has(token));
+  });
 }
 
 function tokenize(value) {
@@ -464,6 +487,11 @@ function weightedTokenScore(queryTokens, value, weight) {
   if (!value) return 0;
   const valueTokens = new Set(value.split(/\s+/).filter(Boolean));
   return queryTokens.reduce((total, token) => total + (valueTokens.has(token) ? weight : 0), 0);
+}
+
+function countMatchedTokens(queryTokens, values) {
+  const haystack = new Set(values.join(" ").split(/\s+/).filter(Boolean));
+  return queryTokens.filter((token) => haystack.has(token)).length;
 }
 
 function normalizeToken(token) {
@@ -539,13 +567,13 @@ function formatSources(rows) {
   }));
 }
 
-async function askOpenAI(question, rows, podcast) {
+async function askOpenAI(question, rows, podcast, draftAnswer) {
   const models = Array.from(new Set([MODEL, FALLBACK_OPENAI_MODEL].filter(Boolean)));
   let lastError;
 
   for (const model of models) {
     try {
-      const text = await createOpenAIResponse(question, rows, podcast, model);
+      const text = await createOpenAIResponse(question, rows, podcast, model, draftAnswer);
       return { text, model };
     } catch (error) {
       lastError = error;
@@ -556,7 +584,7 @@ async function askOpenAI(question, rows, podcast) {
   throw lastError;
 }
 
-async function createOpenAIResponse(question, rows, podcast, model) {
+async function createOpenAIResponse(question, rows, podcast, model, draftAnswer) {
   const context = rows.map((row, index) => {
     return [
       `Data ${index + 1}:`,
@@ -586,10 +614,13 @@ async function createOpenAIResponse(question, rows, podcast, model) {
               type: "input_text",
               text: [
                 "Anda adalah chatbot editorial Kompas.id untuk siniar.",
-                "Jawab hanya berdasarkan konteks spreadsheet yang diberikan.",
-                `Jika jawaban tidak ada di konteks, jawab persis: ${MISSING_INFO_MESSAGE}`,
+                "Tugas Anda hanya merapikan draf jawaban yang sudah dipilih dari spreadsheet.",
+                "Jangan membuat jawaban baru di luar draf dan konteks spreadsheet.",
+                `Jika draf atau konteks tidak menjawab pertanyaan pengguna, jawab persis: ${MISSING_INFO_MESSAGE}`,
                 "Jangan mencari informasi di internet.",
                 "Jangan mengarang nama, tanggal, angka, kutipan, atau kesimpulan.",
+                "Jangan menambahkan interpretasi seperti penyebab, dampak, atau opini jika tidak tertulis jelas di data.",
+                "Jika pertanyaan meminta hal spesifik yang tidak disebut di data, katakan informasi tersebut belum tersedia.",
                 "Gunakan karakter pembawa berita televisi: sangat sopan, ramah, informatif, tenang, dan to the point.",
                 "Gunakan kalimat pendek dan rapi. Hindari gaya terlalu akrab, bercanda, atau bertele-tele.",
                 "Untuk sapaan atau percakapan ringan, jawab secara hangat dan profesional tanpa menambahkan fakta baru.",
@@ -604,7 +635,12 @@ async function createOpenAIResponse(question, rows, podcast, model) {
           content: [
             {
               type: "input_text",
-              text: `Konteks spreadsheet:\n${context}\n\nPertanyaan pengguna:\n${question}`
+              text: [
+                `Draf jawaban dari data terpilih:\n${draftAnswer}`,
+                `Konteks spreadsheet:\n${context}`,
+                `Pertanyaan pengguna:\n${question}`,
+                "Rumuskan ulang draf secara natural dan ringkas. Jangan tambahkan fakta baru."
+              ].join("\n\n")
             }
           ]
         }
