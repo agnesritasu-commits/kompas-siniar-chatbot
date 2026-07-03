@@ -151,19 +151,35 @@ function getFollowUpContext(question, history) {
   const recentAssistant = [...history].reverse().find((item) => item.role === "assistant");
   const recentSources = recentAssistant?.sources || [];
   const sourceTopics = recentSources.map((source) => normalizeText(source.topic)).join(" ");
+  const firstSourceTopic = normalizeText(recentSources[0]?.topic || "");
   const recentAnswer = recentAssistant?.content || "";
+  const mentionedPerson = extractPersonName(recentAnswer);
 
-  if (sourceTopics.includes("narasumber") || /(?:Muhammad\s+)?Chatib(?:\s+Basri)?/i.test(recentAnswer)) {
+  if (mentionedPerson === "FX Agung Timbul Laksana" || /\bhost itu\b/u.test(text)) {
     return {
-      target: "narasumber",
-      label: extractPersonName(recentAnswer) || "Muhammad Chatib Basri"
+      target: "host",
+      label: mentionedPerson || "FX Agung Timbul Laksana"
     };
   }
 
-  if (sourceTopics.includes("host") || /FX Agung/i.test(recentAnswer)) {
+  if (mentionedPerson === "Muhammad Chatib Basri" || /\bnarasumber itu\b/u.test(text)) {
+    return {
+      target: "narasumber",
+      label: mentionedPerson || "Muhammad Chatib Basri"
+    };
+  }
+
+  if (firstSourceTopic.includes("host") || (sourceTopics.includes("host") && !sourceTopics.includes("narasumber"))) {
     return {
       target: "host",
-      label: extractPersonName(recentAnswer) || "FX Agung Timbul Laksana"
+      label: "FX Agung Timbul Laksana"
+    };
+  }
+
+  if (firstSourceTopic.includes("narasumber") || sourceTopics.includes("narasumber")) {
+    return {
+      target: "narasumber",
+      label: "Muhammad Chatib Basri"
     };
   }
 

@@ -148,6 +148,31 @@ assert.match(summaryFollowUpRes.body.answer, /Muhammad Chatib Basri/);
 assert.match(summaryFollowUpRes.body.answer, /Ekonom Senior/);
 assert.doesNotMatch(summaryFollowUpRes.body.answer, /FX Agung/);
 
+const hostFollowUpRes = createRes();
+await handler(createReq({
+  question: "Siapa dia?",
+  podcastId: "kompas-siniar",
+  history: [
+    {
+      role: "user",
+      content: "Ada host?"
+    },
+    {
+      role: "assistant",
+      content: 'Ada. Host episode ini adalah FX Agung "Timbul" Laksana.',
+      sources: [
+        { topic: "nama host" },
+        { topic: "profil host" },
+        { topic: "profil narasumber" }
+      ]
+    }
+  ]
+}), hostFollowUpRes);
+assert.equal(hostFollowUpRes.statusCode, 200);
+assert.match(hostFollowUpRes.body.answer, /FX Agung/);
+assert.match(hostFollowUpRes.body.answer, /wartawan ekonomi/);
+assert.doesNotMatch(hostFollowUpRes.body.answer, /Muhammad Chatib Basri adalah ekonom senior/);
+
 const directChatibRes = createRes();
 await handler(createReq({ question: "Siapa Chatib?", podcastId: "kompas-siniar" }), directChatibRes);
 assert.equal(directChatibRes.statusCode, 200);
