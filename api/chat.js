@@ -65,6 +65,16 @@ export default async function handler(req, res) {
     const podcast = selectPodcast(config, podcastId);
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl));
     const filteredRows = filterRows(rows, podcast.id, episodeId);
+    const existenceAnswer = getExistenceAnswer(question, filteredRows);
+
+    if (existenceAnswer) {
+      return res.status(200).json({
+        answer: existenceAnswer.text,
+        mode: "fallback",
+        sources: formatSources(existenceAnswer.rows)
+      });
+    }
+
     const followUpContext = getFollowUpContext(question, history);
     const personContext = followUpContext || getDirectPersonContext(question, filteredRows);
     const rankingQuestion = resolveFollowUpQuestion(question, personContext);
@@ -195,6 +205,42 @@ function resolveFollowUpQuestion(question, followUpContext) {
     return `${question} profil host nama host ${followUpContext.label}`;
   }
   return question;
+}
+
+function getExistenceAnswer(question, rows) {
+  const text = normalizeLooseText(question);
+  const asksNarasumber = /\b(ada|punya|siapa)\b.*\bnarasumber\b|\bnarasumber\b.*\b(ada|siapa)\b/u.test(text);
+  const asksHost = /\b(ada|punya|siapa)\b.*\b(host|pembawa acara|pewara)\b|\b(host|pembawa acara|pewara)\b.*\b(ada|siapa)\b/u.test(text);
+
+  if (asksNarasumber) {
+    const name = findAnswerByTopic(rows, "nama narasumber");
+    if (!name) return null;
+    const selectedRows = rows.filter((row) => {
+      const topic = normalizeText(row.topic);
+      return topic === "nama narasumber" || topic === "profil narasumber";
+    });
+
+    return {
+      text: `Ada. Narasumber episode ini adalah ${name}.`,
+      rows: selectedRows
+    };
+  }
+
+  if (asksHost) {
+    const name = findAnswerByTopic(rows, "nama host");
+    if (!name) return null;
+    const selectedRows = rows.filter((row) => {
+      const topic = normalizeText(row.topic);
+      return topic === "nama host" || topic === "profil host";
+    });
+
+    return {
+      text: `Ada. Host episode ini adalah ${name}.`,
+      rows: selectedRows
+    };
+  }
+
+  return null;
 }
 
 function getDirectPersonContext(question, rows) {

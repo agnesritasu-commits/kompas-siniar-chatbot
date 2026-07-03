@@ -107,6 +107,16 @@ await handler(createReq({ question: "Siapa narasumbernya?", podcastId: "kompas-s
 assert.equal(keyValueRes.statusCode, 200);
 assert.match(keyValueRes.body.answer, /Muhammad Chatib Basri/);
 
+const hasSpeakerRes = createRes();
+await handler(createReq({ question: "ada narasumber", podcastId: "kompas-siniar" }), hasSpeakerRes);
+assert.equal(hasSpeakerRes.statusCode, 200);
+assert.match(hasSpeakerRes.body.answer, /^Ada\. Narasumber episode ini adalah Muhammad Chatib Basri\./);
+
+const hasHostRes = createRes();
+await handler(createReq({ question: "ada host?", podcastId: "kompas-siniar" }), hasHostRes);
+assert.equal(hasHostRes.statusCode, 200);
+assert.match(hasHostRes.body.answer, /^Ada\. Host episode ini adalah FX Agung Timbul Laksana\./);
+
 const followUpRes = createRes();
 await handler(createReq({
   question: "Siapa dia?",
