@@ -150,8 +150,8 @@ function createSourceLinks(sources) {
     link.href = source.url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "Baca episode";
-    link.setAttribute("aria-label", source.title ? `Baca episode: ${source.title}` : "Baca episode");
+    link.textContent = "Tonton Episode Kali Ini";
+    link.setAttribute("aria-label", source.title ? `Tonton episode kali ini: ${source.title}` : "Tonton Episode Kali Ini");
     wrapper.append(link);
   });
 
