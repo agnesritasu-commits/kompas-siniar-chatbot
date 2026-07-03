@@ -126,6 +126,34 @@ assert.equal(followUpRes.statusCode, 200);
 assert.match(followUpRes.body.answer, /Muhammad Chatib Basri/);
 assert.doesNotMatch(followUpRes.body.answer, /FX Agung/);
 
+const summaryFollowUpRes = createRes();
+await handler(createReq({
+  question: "Siapa dia?",
+  podcastId: "kompas-siniar",
+  history: [
+    {
+      role: "user",
+      content: "Apa ringkasannya?"
+    },
+    {
+      role: "assistant",
+      content: "Chatib Basri membahas ekonomi Indonesia dengan metafora sepak bola.",
+      sources: [{ topic: "ringkasan isi siniar" }]
+    }
+  ]
+}), summaryFollowUpRes);
+assert.equal(summaryFollowUpRes.statusCode, 200);
+assert.match(summaryFollowUpRes.body.answer, /Muhammad Chatib Basri/);
+assert.match(summaryFollowUpRes.body.answer, /Ekonom Senior/);
+assert.doesNotMatch(summaryFollowUpRes.body.answer, /FX Agung/);
+
+const directChatibRes = createRes();
+await handler(createReq({ question: "Siapa Chatib?", podcastId: "kompas-siniar" }), directChatibRes);
+assert.equal(directChatibRes.statusCode, 200);
+assert.match(directChatibRes.body.answer, /Muhammad Chatib Basri/);
+assert.match(directChatibRes.body.answer, /Ekonom Senior/);
+assert.doesNotMatch(directChatibRes.body.answer, /^Muhammad Chatib Basri\.?$/);
+
 const catenaccioRes = createRes();
 await handler(createReq({ question: "Apa itu catenaccio?", podcastId: "kompas-siniar" }), catenaccioRes);
 assert.equal(catenaccioRes.statusCode, 200);

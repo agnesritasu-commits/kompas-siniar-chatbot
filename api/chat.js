@@ -67,7 +67,8 @@ export default async function handler(req, res) {
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl));
     const filteredRows = filterRows(rows, podcast.id, episodeId);
     const followUpContext = getFollowUpContext(question, history);
-    const rankingQuestion = resolveFollowUpQuestion(question, followUpContext);
+    const personContext = followUpContext || getDirectPersonContext(question, filteredRows);
+    const rankingQuestion = resolveFollowUpQuestion(question, personContext);
     const relevantRows = rankRows(filteredRows, rankingQuestion, {
       knownEntityReference: hasKnownEntityReference(rankingQuestion, filteredRows)
     }).slice(0, MAX_CONTEXT_ROWS);
@@ -80,7 +81,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const fallbackAnswer = makeFallbackAnswer(relevantRows, filteredRows, followUpContext);
+    const fallbackAnswer = makeFallbackAnswer(relevantRows, filteredRows, personContext);
 
     if (!process.env.OPENAI_API_KEY) {
       return res.status(200).json({
@@ -149,7 +150,7 @@ function getFollowUpContext(question, history) {
   const sourceTopics = recentSources.map((source) => normalizeText(source.topic)).join(" ");
   const recentAnswer = recentAssistant?.content || "";
 
-  if (sourceTopics.includes("narasumber") || /Muhammad Chatib Basri/i.test(recentAnswer)) {
+  if (sourceTopics.includes("narasumber") || /(?:Muhammad\s+)?Chatib(?:\s+Basri)?/i.test(recentAnswer)) {
     return {
       target: "narasumber",
       label: extractPersonName(recentAnswer) || "Muhammad Chatib Basri"
@@ -177,9 +178,39 @@ function resolveFollowUpQuestion(question, followUpContext) {
   return question;
 }
 
+function getDirectPersonContext(question, rows) {
+  const normalizedQuestion = normalizeText(question);
+  if (!isPersonQuestion(question, normalizedQuestion)) return null;
+
+  const queryTokens = tokenize(question);
+  const candidates = [
+    {
+      target: "narasumber",
+      name: findAnswerByTopic(rows, "nama narasumber")
+    },
+    {
+      target: "host",
+      name: findAnswerByTopic(rows, "nama host")
+    }
+  ];
+
+  const matched = candidates.find((candidate) => {
+    if (!candidate.name) return false;
+    const nameTokens = [...tokenize(candidate.name)];
+    return nameTokens.some((token) => queryTokens.has(token));
+  });
+
+  if (!matched) return null;
+
+  return {
+    target: matched.target,
+    label: matched.name
+  };
+}
+
 function extractPersonName(value) {
   const text = String(value || "");
-  if (/Muhammad Chatib Basri/i.test(text)) return "Muhammad Chatib Basri";
+  if (/(?:Muhammad\s+)?Chatib(?:\s+Basri)?/i.test(text)) return "Muhammad Chatib Basri";
   if (/FX Agung/i.test(text)) return "FX Agung Timbul Laksana";
   return "";
 }
@@ -398,7 +429,7 @@ function rankRows(rows, question, options = {}) {
   const normalizedQuestion = normalizeText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(normalizedQuestion);
   const contentQuestion = isContentQuestion(normalizedQuestion);
-  const personQuestion = isPersonQuestion(normalizedQuestion);
+  const personQuestion = isPersonQuestion(question, normalizedQuestion);
   const preferredRows = contentQuestion && !personQuestion
     ? rows.filter((row) => CONTENT_TOPICS.has(normalizeText(row.topic)))
     : evaluativeQuestion
@@ -453,8 +484,10 @@ function isContentQuestion(normalizedQuestion) {
   return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi)\b/u.test(normalizedQuestion);
 }
 
-function isPersonQuestion(normalizedQuestion) {
-  return /\b(siapa|profil|latar|belakang|jabatan|profesi|narasumber|host|pembawa|pewara)\b/u.test(normalizedQuestion);
+function isPersonQuestion(question, normalizedQuestion = "") {
+  return /\b(siapa|profil|latar|belakang|jabatan|profesi|narasumber|host|pembawa|pewara)\b/u.test(
+    normalizeLooseText(`${question} ${normalizedQuestion}`)
+  );
 }
 
 function hasKnownEntityReference(question, rows) {
@@ -477,6 +510,14 @@ function tokenize(value) {
       .map(normalizeToken)
       .filter((token) => token.length > 2 && !stopwords.has(token))
   );
+}
+
+function normalizeLooseText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeText(value) {
