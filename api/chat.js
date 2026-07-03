@@ -329,8 +329,15 @@ function rankRows(rows, question) {
   const queryTokens = Array.from(tokenize(question));
   const normalizedQuestion = normalizeText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(normalizedQuestion);
+  const preferredRows = evaluativeQuestion
+    ? rows.filter((row) => {
+        const topic = normalizeText(row.topic);
+        return topic.includes("kenapa") || topic.includes("penting") || topic.includes("menarik");
+      })
+    : [];
+  const rankedRows = preferredRows.length ? preferredRows : rows;
 
-  return rows
+  return rankedRows
     .map((row) => {
       const topic = normalizeText(row.topic);
       const questionText = normalizeText(row.question);
