@@ -93,6 +93,8 @@ globalThis.fetch = async () => new Response([
   "link_video,https://www.kompas.id/artikel/contoh",
   "nama_narasumber,Muhammad Chatib Basri",
   "profil_narasumber,Ekonom Senior",
+  "nama_host,FX Agung Timbul Laksana",
+  "profil_host,FX Agung Timbul Laksana adalah wartawan ekonomi Harian Kompas dan Kompas.id.",
   "ringkasan_isi_siniar,Chatib Basri membahas ekonomi Indonesia dengan metafora sepak bola.",
   "kenapa_siniar_ini_penting,Pembahasan ini menarik karena menjelaskan ekonomi Indonesia dengan gaya bertutur yang ringan.",
   "apa_itu_catenaccio,Catenaccio adalah taktik sepak bola Italia yang mengutamakan pertahanan terorganisasi.",
@@ -135,6 +137,12 @@ await handler(createReq({ question: "Menurut kamu episode ini menarik tidak?", p
 assert.equal(interestingRes.statusCode, 200);
 assert.match(interestingRes.body.answer, /menarik/);
 assert.doesNotMatch(interestingRes.body.answer, /Piala Dunia 2026 bergulir/);
+
+const hostContentRes = createRes();
+await handler(createReq({ question: "Apa yang diomongkan FX Laksana?", podcastId: "kompas-siniar" }), hostContentRes);
+assert.equal(hostContentRes.statusCode, 200);
+assert.match(hostContentRes.body.answer, /membahas ekonomi Indonesia/);
+assert.doesNotMatch(hostContentRes.body.answer, /^FX Agung Timbul Laksana$/);
 
 globalThis.fetch = originalFetch;
 

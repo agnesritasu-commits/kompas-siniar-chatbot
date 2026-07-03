@@ -4,10 +4,18 @@ import path from "node:path";
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const FALLBACK_OPENAI_MODEL = process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
-const FRIENDLY_MISSING_INFO_MESSAGE = "Maaf, informasi tersebut belum tersedia di data spreadsheet. Anda dapat menanyakan topik lain yang berkaitan dengan episode ini.";
+const FRIENDLY_MISSING_INFO_MESSAGE = "Maaf, informasi itu belum tersedia di data spreadsheet. Saya hanya dapat menjawab berdasarkan data episode yang tersedia.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_QUESTION_LENGTH = 600;
 const LOW_VALUE_TOPICS = new Set(["nomor video", "judul", "link video", "tanggal tayang yyyymmdd", "bentuk video"]);
+const CONTENT_TOPICS = new Set([
+  "ringkasan isi siniar",
+  "poin penting siniar",
+  "deskripsi episode",
+  "kenapa siniar penting",
+  "catenaccio"
+]);
+const PERSON_TOPICS = new Set(["nama host", "profil host", "nama narasumber", "profil narasumber"]);
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const phonePattern = /(?:\+?\d[\s().-]?){8,}\d/;
@@ -345,13 +353,13 @@ function normalizeSpreadsheetRows(rows) {
 function semanticKeywordsForKey(key) {
   const normalized = String(key || "").trim().toLowerCase();
   const keywords = {
-    ringkasan_isi_siniar: "ringkasan isi bahas dibahas pembahasan cerita inti episode topik utama pesan utama",
+    ringkasan_isi_siniar: "ringkasan isi bahas dibahas pembahasan diomongkan ngomong bicara dibicarakan disampaikan cerita inti episode topik utama pesan utama",
     kenapa_siniar_ini_penting: "penting menarik alasan rekomendasi perlu didengar layak disimak bagus nilai manfaat",
-    deskripsi_episode: "deskripsi tentang episode pengantar konteks membahas",
-    poin_penting_siniar: "poin penting bagian struktur segmen alur pembahasan",
+    deskripsi_episode: "deskripsi tentang episode pengantar konteks membahas diomongkan dibicarakan",
+    poin_penting_siniar: "poin penting bagian struktur segmen alur pembahasan bahasan pembicaraan",
     nama_narasumber: "narasumber pembicara tamu siapa",
     profil_narasumber: "profil narasumber latar belakang jabatan profesi",
-    nama_host: "host pembawa acara pewara presenter",
+    nama_host: "host pembawa acara pewara presenter fx agung timbul laksana",
     profil_host: "profil host pembawa acara pewara presenter",
     apa_itu_catenaccio: "catenaccio arti definisi maksud istilah taktik sepak bola"
   };
@@ -386,7 +394,11 @@ function rankRows(rows, question) {
   const queryTokens = Array.from(tokenize(question));
   const normalizedQuestion = normalizeText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(normalizedQuestion);
-  const preferredRows = evaluativeQuestion
+  const contentQuestion = isContentQuestion(normalizedQuestion);
+  const personQuestion = isPersonQuestion(normalizedQuestion);
+  const preferredRows = contentQuestion && !personQuestion
+    ? rows.filter((row) => CONTENT_TOPICS.has(normalizeText(row.topic)))
+    : evaluativeQuestion
     ? rows.filter((row) => {
         const topic = normalizeText(row.topic);
         return topic.includes("kenapa") || topic.includes("penting") || topic.includes("menarik");
@@ -411,6 +423,8 @@ function rankRows(rows, question) {
 
       if (topic && normalizedQuestion.includes(topic)) score += 12;
       if (topic.includes(normalizedQuestion)) score += 8;
+      if (contentQuestion && CONTENT_TOPICS.has(topic)) score += 28;
+      if (contentQuestion && !personQuestion && PERSON_TOPICS.has(topic)) score -= 30;
       if (evaluativeQuestion && topic === "kenapa siniar penting") score += 40;
       if (evaluativeQuestion && topic === "deskripsi episode") score -= 18;
       if (LOW_VALUE_TOPICS.has(topic)) score -= 4;
@@ -420,6 +434,14 @@ function rankRows(rows, question) {
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
     .map((item) => item.row);
+}
+
+function isContentQuestion(normalizedQuestion) {
+  return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi)\b/u.test(normalizedQuestion);
+}
+
+function isPersonQuestion(normalizedQuestion) {
+  return /\b(siapa|profil|latar|belakang|jabatan|profesi|narasumber|host|pembawa|pewara)\b/u.test(normalizedQuestion);
 }
 
 function tokenize(value) {
@@ -495,7 +517,7 @@ function findAnswerByTopic(rows, topic) {
 
 function makeFriendlyDataAnswer(answer) {
   const text = String(answer || "").trim();
-  if (!text) return MISSING_INFO_MESSAGE;
+  if (!text) return FRIENDLY_MISSING_INFO_MESSAGE;
   if (text.length < 90) return text;
   return `Berdasarkan data episode ini: ${text}`;
 }
