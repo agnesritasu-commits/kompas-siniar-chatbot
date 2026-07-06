@@ -5,7 +5,7 @@ const statusEl = document.querySelector("#status");
 const sendButton = document.querySelector("#send-button");
 
 const params = new URLSearchParams(window.location.search);
-const podcastId = params.get("podcast") || "kompas-siniar";
+const podcastId = params.get("podcast") || "kompas-professional-mining";
 const episodeId = params.get("episode") || "";
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;

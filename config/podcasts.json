@@ -1,6 +1,19 @@
 {
-  "defaultPodcastId": "kompas-siniar",
+  "defaultPodcastId": "kompas-professional-mining",
   "podcasts": [
+    {
+      "id": "kompas-professional-mining",
+      "name": "Kompas Professional Mining",
+      "description": "Chatbot berbasis data spreadsheet publik untuk episode Kompas Professional Mining.",
+      "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vSuMtRRvEb_k_vxSk73_ig9kJeuFPpMIMFMxDeBYVgNq_EQXthTjjOBpuipl3FzKf8KoHOxLcoIyj22/pub?gid=0&single=true&output=csv",
+      "episodes": [
+        {
+          "id": "video_2",
+          "title": "Mengurai Sengkarut Tata Kelola Batubara di Balik Insiden Byarpet Listrik",
+          "sheet": "Sheet1"
+        }
+      ]
+    },
     {
       "id": "kompas-siniar",
       "name": "Kompas Siniar",

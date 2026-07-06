@@ -63,7 +63,7 @@ export default async function handler(req, res) {
 
     const config = await loadConfig();
     const podcast = selectPodcast(config, podcastId);
-    const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl));
+    const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl), podcast.id);
     const filteredRows = filterRows(rows, podcast.id, episodeId);
     const existenceAnswer = getExistenceAnswer(question, filteredRows);
 
@@ -414,7 +414,7 @@ function parseCsv(csv) {
   });
 }
 
-function normalizeSpreadsheetRows(rows) {
+function normalizeSpreadsheetRows(rows, podcastId = "kompas-siniar") {
   if (!rows.length) return rows;
 
   const first = rows[0];
@@ -435,7 +435,7 @@ function normalizeSpreadsheetRows(rows) {
       if (!key || !value) return null;
 
       return {
-        podcast_id: "kompas-siniar",
+        podcast_id: podcastId,
         episode_id: episodeId || "utama",
         episode_title: episodeTitle,
         podcast_name: podcastName,
@@ -460,7 +460,11 @@ function semanticKeywordsForKey(key) {
     profil_narasumber: "profil narasumber latar belakang jabatan profesi",
     nama_host: "host pembawa acara pewara presenter fx agung timbul laksana",
     profil_host: "profil host pembawa acara pewara presenter",
-    apa_itu_catenaccio: "catenaccio arti definisi maksud istilah taktik sepak bola"
+    apa_itu_catenaccio: "catenaccio arti definisi maksud istilah taktik sepak bola",
+    apa_itu_kompas_professional_mining: "kompas professional mining profesional pertambangan mineral batubara batu bara definisi tentang",
+    isi_lengkap_siniar_sampai_menit_6: "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit",
+    "isi_lengkap_siniar_sampai_menit_6:57": "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit",
+    ringkasan_dan_time_stamp: "ringkasan timestamp time stamp menit alur bagian segmen pembahasan"
   };
   return keywords[normalized] || "";
 }

@@ -251,6 +251,35 @@ assert.match(openAiMissingRes.body.answer, /episode ini berjudul/);
 assert.deepEqual(openAiMissingRes.body.sources, []);
 delete process.env.OPENAI_API_KEY;
 
+globalThis.fetch = async () => new Response([
+  "kunci,Bahasa Indonesia",
+  "nomor_video,video_2",
+  "judul,Mengurai Sengkarut Tata Kelola Batubara di Balik Insiden Byarpet Listrik",
+  "link_video,https://www.kompas.id/artikel/mengurai-sengkarut-pasokan-batubara-di-balik-insiden-byarpet-listrik",
+  "nama_host,Aris Prasetyo",
+  "profil_host,Wartawan harian Kompas/Kompas.id yang banyak meliput isu pertambangan dan energi di Indonesia.",
+  "nama_narasumber,Ardhi Ishak",
+  "profil_narasumber,Ketua Bidang Hubungan Industri dan Asosiasi Industri Perhimpunan Ahli Pertambangan Indonesia",
+  "ringkasan_isi_siniar,Krisis pasokan batu bara untuk PLTU bukan disebabkan minimnya cadangan nasional, melainkan persoalan tata kelola dan koordinasi data.",
+  "nama_siniar,Kompas Professional Mining",
+  "apa_itu_kompas_professional_mining,Kompas Professional Mining adalah bagian dari harian Kompas yang fokus mengulas isu pertambangan."
+].join("\n"));
+
+const newPodcastSpeakerRes = createRes();
+await handler(createReq({ question: "ada narasumber", podcastId: "kompas-professional-mining" }), newPodcastSpeakerRes);
+assert.equal(newPodcastSpeakerRes.statusCode, 200);
+assert.match(newPodcastSpeakerRes.body.answer, /Ardhi Ishak/);
+
+const newPodcastHostRes = createRes();
+await handler(createReq({ question: "ada host?", podcastId: "kompas-professional-mining" }), newPodcastHostRes);
+assert.equal(newPodcastHostRes.statusCode, 200);
+assert.match(newPodcastHostRes.body.answer, /Aris Prasetyo/);
+
+const newPodcastDefinitionRes = createRes();
+await handler(createReq({ question: "Apa itu Kompas Professional Mining?", podcastId: "kompas-professional-mining" }), newPodcastDefinitionRes);
+assert.equal(newPodcastDefinitionRes.statusCode, 200);
+assert.match(newPodcastDefinitionRes.body.answer, /fokus mengulas isu pertambangan/);
+
 globalThis.fetch = originalFetch;
 
 console.log("Smoke tests passed.");
