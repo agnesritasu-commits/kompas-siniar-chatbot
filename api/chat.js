@@ -649,9 +649,9 @@ function semanticKeywordsForKey(key) {
     profil_host: "profil host pembawa acara pewara presenter",
     apa_itu_catenaccio: "catenaccio arti definisi maksud istilah taktik sepak bola",
     apa_itu_kompas_professional_mining: "kompas professional mining profesional pertambangan mineral batubara batu bara definisi tentang",
-    isi_lengkap_siniar_sampai_menit_6: "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit",
-    "isi_lengkap_siniar_sampai_menit_6:57": "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit",
-    ringkasan_dan_time_stamp: "ringkasan timestamp time stamp menit alur bagian segmen pembahasan"
+    isi_lengkap_siniar_sampai_menit_6: "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit dmo domestic market obligation rkab hop",
+    "isi_lengkap_siniar_sampai_menit_6:57": "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit dmo domestic market obligation rkab hop",
+    ringkasan_dan_time_stamp: "ringkasan timestamp time stamp menit alur bagian segmen pembahasan dmo domestic market obligation rkab hop"
   };
   return keywords[normalized] || "";
 }
@@ -685,6 +685,7 @@ function rankRows(rows, question, options = {}) {
   const normalizedQuestion = normalizeText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(normalizedQuestion);
   const contentQuestion = isContentQuestion(normalizedQuestion);
+  const termQuestion = isTermQuestion(question, normalizedQuestion);
   const speakerContentQuestion = isSpeakerContentQuestion(question, normalizedQuestion);
   const personQuestion = isPersonQuestion(question, normalizedQuestion);
   const preferredRows = (contentQuestion && (!personQuestion || speakerContentQuestion))
@@ -712,6 +713,11 @@ function rankRows(rows, question, options = {}) {
       score += weightedTokenScore(queryTokens, answer, 2);
       score += weightedTokenScore(queryTokens, episodeTitle, 0.4);
 
+      if (termQuestion) {
+        score += weightedTokenScore(queryTokens, topic, 8);
+        score += weightedTokenScore(queryTokens, keywords, 8);
+        score += weightedTokenScore(queryTokens, answer, 7);
+      }
       if (topic && normalizedQuestion.includes(topic)) score += 12;
       if (topic.includes(normalizedQuestion)) score += 8;
       if (contentQuestion && CONTENT_TOPICS.has(topic)) score += 28;
@@ -724,8 +730,13 @@ function rankRows(rows, question, options = {}) {
 
       const matchedTokens = countMatchedTokens(queryTokens, [topic, questionText, keywords, answer, episodeTitle]);
       const directTopicMatch = topic && [...tokenize(topic)].some((token) => queryTokens.includes(token));
+      const strongTermMatch = termQuestion && matchedTokens >= 1 && queryTokens.length <= 3 && (
+        hasAnyToken(queryTokens, [topic, questionText, keywords, answer]) ||
+        directTopicMatch
+      );
       const relevantEnough = score >= MIN_RELEVANCE_SCORE && (
         matchedTokens >= 2 ||
+        strongTermMatch ||
         directTopicMatch ||
         personQuestion ||
         evaluativeQuestion ||
@@ -741,6 +752,11 @@ function rankRows(rows, question, options = {}) {
 
 function isContentQuestion(normalizedQuestion) {
   return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|disampaikan|bilang|dibilang|katakan|dikatakan|ucap|diucapkan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi)\b/u.test(normalizedQuestion);
+}
+
+function isTermQuestion(question, normalizedQuestion = "") {
+  const text = normalizeLooseText(`${question} ${normalizedQuestion}`);
+  return /\b(apa itu|apa arti|artinya apa|maksudnya apa|maksud dari|jelaskan|definisi|istilah)\b/u.test(text);
 }
 
 function isSpeakerContentQuestion(question, normalizedQuestion = "") {
@@ -799,6 +815,11 @@ function weightedTokenScore(queryTokens, value, weight) {
 function countMatchedTokens(queryTokens, values) {
   const haystack = new Set(values.join(" ").split(/\s+/).filter(Boolean));
   return queryTokens.filter((token) => haystack.has(token)).length;
+}
+
+function hasAnyToken(queryTokens, values) {
+  const haystack = new Set(values.join(" ").split(/\s+/).filter(Boolean));
+  return queryTokens.some((token) => haystack.has(token));
 }
 
 function normalizeToken(token) {
