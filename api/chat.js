@@ -129,6 +129,7 @@ export default async function handler(req, res) {
 
 function getDirectDataAnswer(question, rows) {
   return getEpisodeAnswer(question, rows) ||
+    getContextAnswer(question, rows) ||
     getEvaluativeAnswer(question, rows) ||
     getSpeakerStatementAnswer(question, rows) ||
     getContentAnswer(question, rows) ||
@@ -275,7 +276,8 @@ function resolveFollowUpQuestion(question, followUpContext) {
 function getEpisodeAnswer(question, rows) {
   const text = normalizeLooseText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(text);
-  const asksEpisodeTitle = !evaluativeQuestion &&
+  const contextQuestion = isContextQuestion(question, text);
+  const asksEpisodeTitle = !evaluativeQuestion && !contextQuestion &&
     (/\b(episode|judul|tema)\b.*\b(apa|berapa|kali ini)\b|\b(apa|ini)\b.*\b(episode|judul|tema)\b/u.test(text));
   if (!asksEpisodeTitle) return null;
 
@@ -290,6 +292,41 @@ function getEpisodeAnswer(question, rows) {
 
   return {
     text: `Siniar: ${podcastName}. Episode kali ini berjudul "${title}".`,
+    rows: selectedRows
+  };
+}
+
+function getContextAnswer(question, rows) {
+  if (!isContextQuestion(question)) return null;
+
+  const podcastName = findAnswerByTopic(rows, "nama siniar");
+  const description = findAnswerByTopic(rows, "deskripsi episode");
+  const summary = findAnswerByTopic(rows, "ringkasan isi siniar");
+  const importance = findAnswerByTopic(rows, "kenapa siniar ini penting");
+  const title = findAnswerByTopic(rows, "judul");
+  const parts = [
+    description ? `Konteksnya: ${description}` : "",
+    summary ? `Intinya, episode ini membahas ${summary}` : "",
+    importance ? `Nilai pentingnya: ${importance}` : ""
+  ].filter(Boolean);
+
+  if (!parts.length) return null;
+
+  const selectedRows = rows.filter((row) => {
+    const topic = normalizeText(row.topic);
+    return topic === "deskripsi episode" ||
+      topic === "ringkasan isi siniar" ||
+      topic === "kenapa siniar penting" ||
+      topic === "nama siniar" ||
+      topic === "judul";
+  });
+
+  return {
+    text: [
+      podcastName ? `Siniar: ${podcastName}.` : "",
+      title ? `Episode: "${title}".` : "",
+      ...parts
+    ].filter(Boolean).join("\n"),
     rows: selectedRows
   };
 }
@@ -641,7 +678,7 @@ function semanticKeywordsForKey(key) {
   const keywords = {
     ringkasan_isi_siniar: "ringkasan isi bahas dibahas pembahasan diomongkan ngomong bicara dibicarakan disampaikan cerita inti episode topik utama pesan utama bilang dibilang dikatakan ucapan narasumber",
     kenapa_siniar_ini_penting: "penting menarik alasan rekomendasi perlu didengar layak disimak bagus nilai manfaat",
-    deskripsi_episode: "deskripsi tentang episode pengantar konteks membahas diomongkan dibicarakan",
+    deskripsi_episode: "deskripsi tentang episode pengantar konteks latar belakang situasi momentum alasan hadir membahas diomongkan dibicarakan",
     poin_penting_siniar: "poin penting bagian struktur segmen alur pembahasan bahasan pembicaraan pernyataan narasumber disampaikan dikatakan",
     nama_narasumber: "narasumber pembicara tamu siapa",
     profil_narasumber: "profil narasumber latar belakang jabatan profesi",
@@ -752,6 +789,11 @@ function rankRows(rows, question, options = {}) {
 
 function isContentQuestion(normalizedQuestion) {
   return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|disampaikan|bilang|dibilang|katakan|dikatakan|ucap|diucapkan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi)\b/u.test(normalizedQuestion);
+}
+
+function isContextQuestion(question, normalizedQuestion = "") {
+  const text = normalizeLooseText(`${question} ${normalizedQuestion}`);
+  return /\b(konteks|latar belakang|background|pengantar|situasi|momentum|mengapa hadir|kenapa hadir|kenapa episode|alasan episode|dibuat untuk apa)\b/u.test(text);
 }
 
 function isTermQuestion(question, normalizedQuestion = "") {
