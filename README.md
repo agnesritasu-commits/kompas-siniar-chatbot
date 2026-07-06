@@ -90,7 +90,7 @@ OPENAI_MODEL=gpt-5.4-mini
 ALLOWED_ORIGINS=https://www.kompas.id,https://interaktif.kompas.id
 ```
 
-`OPENAI_MODEL` bisa diganti tanpa mengubah kode. Jika `OPENAI_API_KEY` kosong atau OpenAI API tidak tersedia, backend memakai fallback pencocokan kata kunci dari spreadsheet.
+`OPENAI_MODEL` bisa diganti tanpa mengubah kode. Backend hanya memanggil model ini. Jika `OPENAI_API_KEY` kosong atau OpenAI API/model tidak tersedia, backend memakai fallback pencocokan kata kunci dari spreadsheet.
 
 ## Jalankan Lokal
 
