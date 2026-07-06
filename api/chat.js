@@ -413,7 +413,14 @@ function getUtilityAnswer(question) {
 
   const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|dia bisa apa|bisa apa|bisa ngapain|apa kemampuannya|kemampuannya apa|apa kemampuanmu|apa fiturmu|fiturnya apa|fungsinya apa|gunanya apa|cara pakai|mau tanya apa|contoh pertanyaan|aku bisa tanya apa|saya bisa tanya apa)$/u;
   if (helpOnly.test(text)) {
-    return "Saya dapat membantu menjawab pertanyaan tentang episode ini, seperti judul episode, narasumber, host, ringkasan, pokok bahasan, alasan episode ini penting, istilah yang dibahas, dan tautan untuk menonton episode.";
+    return [
+      "Saya dapat membantu menjawab pertanyaan tentang episode ini.",
+      "- Judul episode dan nama siniar.",
+      "- Narasumber dan host.",
+      "- Ringkasan, pokok bahasan, dan alasan episode ini penting.",
+      "- Istilah atau konteks yang tersedia di data.",
+      "- Tautan untuk menonton episode."
+    ].join("\n");
   }
 
   const unsupportedChatOnly = /^(cerita dong|ngobrol dong|temani aku|ayo ngobrol|boleh ngobrol|aku bosan|lucu dong|kasih jokes|bercanda dong)$/u;
@@ -746,8 +753,68 @@ function findAnswerByTopic(rows, topic) {
 function makeFriendlyDataAnswer(answer) {
   const text = String(answer || "").trim();
   if (!text) return MISSING_INFO_MESSAGE;
-  if (text.length < 90) return text;
-  return `Berdasarkan data episode ini: ${text}`;
+  if (text.length < 90 && !/[\n:;-]/u.test(text)) return text;
+
+  const points = extractAnswerPoints(text, 4);
+  if (!points.length) return `Berdasarkan data episode ini: ${text}`;
+
+  return [
+    "Berikut inti jawabannya:",
+    ...points.map((point) => `- ${point}`)
+  ].join("\n");
+}
+
+function extractAnswerPoints(value, limit = 4) {
+  const text = String(value || "")
+    .replace(/\r/g, "\n")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n\s+/g, "\n")
+    .trim();
+
+  const linePoints = text
+    .split(/\n+/u)
+    .map(cleanAnswerPoint)
+    .filter((point) => point && !looksLikeIntroLine(point));
+
+  const sentencePoints = text
+    .replace(/\n+/g, " ")
+    .split(/(?<=[.!?])\s+/u)
+    .map(cleanAnswerPoint)
+    .filter((point) => point && !looksLikeIntroLine(point));
+
+  const source = linePoints.length >= 2 ? linePoints : sentencePoints;
+  const seen = new Set();
+  const points = [];
+
+  for (const point of source) {
+    const normalized = normalizeLooseText(point);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    points.push(truncatePoint(point));
+    if (points.length >= limit) break;
+  }
+
+  return points;
+}
+
+function cleanAnswerPoint(value) {
+  return String(value || "")
+    .replace(/^[\s•\-–—*]+/u, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+}
+
+function looksLikeIntroLine(value) {
+  const text = String(value || "").trim();
+  return /[:：]$/u.test(text) && text.split(/\s+/u).length <= 12;
+}
+
+function truncatePoint(value, maxLength = 180) {
+  const text = String(value || "").trim();
+  if (text.length <= maxLength) return text;
+  const truncated = text.slice(0, maxLength).replace(/\s+\S*$/u, "").trim();
+  return `${truncated}...`;
 }
 
 function makeMissingInfoAnswer(rows = [], podcast = {}) {
@@ -758,10 +825,10 @@ function makeMissingInfoAnswer(rows = [], podcast = {}) {
 
   return [
     `Maaf, informasi itu belum tersedia di data spreadsheet ${podcastName}.`,
-    episodeTitle ? `Untuk konteks, episode ini berjudul "${episodeTitle}".` : "",
-    shortSummary ? `Secara umum, episode ini membahas ${shortSummary}` : "",
-    "Silakan ajukan pertanyaan lain tentang data episode yang tersedia."
-  ].filter(Boolean).join(" ");
+    episodeTitle ? `- episode ini berjudul "${episodeTitle}".` : "",
+    shortSummary ? `- Gambaran singkat: ${shortSummary}` : "",
+    "- Silakan ajukan pertanyaan lain tentang episode ini."
+  ].filter(Boolean).join("\n");
 }
 
 function isMissingInfoAnswer(value) {
@@ -851,7 +918,11 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 "Jangan menambahkan interpretasi seperti penyebab, dampak, atau opini jika tidak tertulis jelas di data.",
                 "Jika pertanyaan meminta hal spesifik yang tidak disebut di data, katakan informasi tersebut belum tersedia.",
                 "Gunakan karakter pembawa berita televisi: sangat sopan, ramah, informatif, tenang, dan to the point.",
+                "Gunakan nada diplomatis, tidak menghakimi, dan tidak berspekulasi.",
+                "Saring dan sarikan jawaban dari data yang tersedia. Jangan menyalin teks panjang secara mentah jika bisa diringkas.",
                 "Gunakan kalimat pendek dan rapi. Hindari gaya terlalu akrab, bercanda, atau bertele-tele.",
+                "Jika jawaban berisi lebih dari satu gagasan, gunakan pointer dengan tanda '-' maksimal empat poin.",
+                "Setiap pointer harus mudah dipahami pembaca umum dan cukup satu kalimat pendek.",
                 "Untuk sapaan atau percakapan ringan, jawab secara hangat dan profesional tanpa menambahkan fakta baru.",
                 "Jawaban harus ringkas, jelas, dan mudah dipahami pembaca.",
                 "Jangan gunakan Markdown heading atau teks tebal."
@@ -868,7 +939,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 `Draf jawaban dari data terpilih:\n${draftAnswer}`,
                 `Konteks spreadsheet:\n${context}`,
                 `Pertanyaan pengguna:\n${question}`,
-                "Rumuskan ulang draf secara natural dan ringkas. Jangan tambahkan fakta baru."
+                "Rumuskan ulang draf secara natural, diplomatis, dan ringkas. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
               ].join("\n\n")
             }
           ]
