@@ -506,36 +506,36 @@ function getUtilityAnswer(question) {
   const hasGreeting = /\b(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|assalamualaikum|permisi)\b/u.test(text);
   const asksWellbeing = /\b(apa kabar|kabarmu|kabar|sehat|lagi apa)\b/u.test(text);
   if (hasGreeting && asksWellbeing) {
-    return "Selamat datang. Terima kasih sudah bertanya. Saya siap membantu dengan jawaban yang singkat, sopan, dan informatif.";
+    return "Selamat datang. Kabar saya baik dan siap membantu. Silakan tanyakan isi episode; saya akan menjawab dengan singkat, sopan, dan informatif berdasarkan data.";
   }
 
   const greetingOnly = /^(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|permisi|met pagi|met siang|met sore|met malam)$/u;
   if (greetingOnly.test(text)) {
-    return "Selamat datang. Silakan ajukan pertanyaan tentang episode ini. Saya dapat membantu menjawab soal narasumber, ringkasan, topik utama, atau istilah yang dibahas.";
+    return "Selamat datang. Silakan ajukan pertanyaan tentang episode ini. Saya bisa membantu dengan jawaban ringkas, menjelaskan konteks, atau menjawab istilah yang dibahas.";
   }
 
   const wellbeingOnly = /^(apa kabar|gimana kabarmu|bagaimana kabarmu|kabar baik|sehat|sehat kah|lagi apa)$/u;
   if (wellbeingOnly.test(text)) {
-    return "Terima kasih. Saya siap membantu menyajikan informasi dari data episode ini secara jelas dan singkat. Silakan ajukan pertanyaan tentang narasumber, ringkasan, topik, atau istilah dalam siniar.";
+    return "Terima kasih, saya siap membantu. Tanyakan saja isi episode, narasumber, konteks, atau istilah tertentu; saya akan menjawab secara singkat dan jelas.";
   }
 
-  const identityOnly = /^(siapa kamu|kamu siapa|kamu apa|kamu ini apa|ini apa|chatbot apa|chatbot ini apa|apa ini|dia apa|ini bot apa|bot apa ini|bot ini apa|ini chatbot apa|asisten apa|asisten ini apa)$/u;
+  const identityOnly = /^(siapa kamu|kamu siapa|kamu apa|apa kamu|kamu ini apa|kamu itu apa|apa kamu ini|apa kamu itu|ini apa|chatbot apa|chatbot ini apa|apa ini|dia apa|ini bot apa|bot apa ini|bot ini apa|botnya apa|ini chatbot apa|asisten apa|asisten ini apa|asisten apa ini)$/u;
   if (identityOnly.test(text)) {
     return [
-      "Saya chatbot Kompas Siniar.",
-      "Saya membantu menyajikan informasi episode secara singkat, sopan, dan mudah dipahami.",
-      "Saya hanya menjawab berdasarkan data episode yang tersedia."
+      "Saya asisten percakapan untuk siniar Kompas.",
+      "Tugas saya membaca data episode yang tersedia, lalu menyajikannya dalam jawaban singkat, sopan, dan mudah dipahami.",
+      "Saya tidak mencari informasi di internet dan tidak menambahkan fakta di luar data."
     ].join(" ");
   }
 
   const thanksOnly = /^(terima kasih|makasih|thanks|thank you|oke|ok|sip|baik|mantap|siap|nice|bagus)$/u;
   if (thanksOnly.test(text)) {
-    return "Sama-sama. Silakan ajukan pertanyaan berikutnya tentang episode ini.";
+    return "Sama-sama. Silakan lanjutkan bila ada bagian episode yang ingin dipahami lebih jauh.";
   }
 
   const apologyOnly = /^(maaf|sorry|maaf ya|maaf tadi salah|sori)$/u;
   if (apologyOnly.test(text)) {
-    return "Tidak apa-apa. Silakan lanjutkan dengan pertanyaan tentang episode ini. Saya akan menjawab berdasarkan data yang tersedia.";
+    return "Tidak apa-apa. Silakan lanjutkan pertanyaannya; saya akan membantu menjawab berdasarkan data episode yang tersedia.";
   }
 
   const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|dia bisa apa|bisa apa|bisa ngapain|apa kemampuannya|kemampuannya apa|apa kemampuanmu|apa fiturmu|fiturnya apa|fungsinya apa|gunanya apa|cara pakai|mau tanya apa|contoh pertanyaan|aku bisa tanya apa|saya bisa tanya apa)$/u;
@@ -1125,12 +1125,15 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 "Jika ada konteks bertopik transkrip, isi lengkap, timestamp, atau time stamp, baca dan gunakan konteks itu untuk memahami isi pembicaraan.",
                 "Gunakan karakter pembawa berita televisi: sangat sopan, ramah, informatif, tenang, dan to the point.",
                 "Jawablah seperti manusia yang memahami pertanyaan, bukan seperti template sistem.",
+                "Jika pertanyaan pengguna santai atau tidak formal, tetap jawab dengan bahasa Indonesia yang luwes, hangat, dan profesional.",
+                "Boleh memberi pengantar sangat singkat seperti 'Intinya,' atau 'Secara sederhana,' jika membuat jawaban lebih natural.",
                 "Utamakan jawaban cerdas yang menyarikan maksud data, bukan daftar mentah dari spreadsheet.",
                 "Jawab langsung inti pertanyaan pada kalimat pertama.",
                 "Boleh menyebut nama narasumber, host, episode, atau siniar jika ada di konteks dan membantu memperjelas jawaban.",
                 "Gunakan nada diplomatis, tidak menghakimi, dan tidak berspekulasi.",
                 "Saring dan sarikan jawaban dari data yang tersedia. Jangan menyalin teks panjang secara mentah jika bisa diringkas.",
                 "Gunakan kalimat pendek, jernih, dan mengalir. Hindari gaya terlalu akrab, bercanda, robotik, atau bertele-tele.",
+                "Hindari frasa kaku seperti 'data menunjukkan' berulang-ulang.",
                 "Jawaban maksimal lima kalimat pendek.",
                 "Jika jawaban berisi lebih dari satu gagasan, gunakan pointer dengan tanda '-' maksimal empat poin.",
                 "Setiap pointer harus mudah dipahami pembaca umum, cukup satu kalimat pendek, dan tidak lebih dari 18 kata.",
@@ -1151,7 +1154,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 `Draf jawaban dari data terpilih:\n${draftAnswer}`,
                 `Konteks spreadsheet:\n${context}`,
                 `Pertanyaan pengguna:\n${question}`,
-                "Jawab pertanyaan pengguna secara langsung. Baca konteks spreadsheet dan transkrip terlebih dahulu. Sarikan menjadi jawaban pendek yang cerdas, natural, diplomatis, dan informatif. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
+                "Jawab pertanyaan pengguna secara langsung. Baca konteks spreadsheet dan transkrip terlebih dahulu. Sarikan menjadi jawaban pendek yang cerdas, natural, diplomatis, informatif, dan terasa seperti jawaban manusia. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
               ].join("\n\n")
             }
           ]
