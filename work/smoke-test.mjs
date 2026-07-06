@@ -289,6 +289,12 @@ assert.equal(newPodcastInterestingRes.statusCode, 200);
 assert.match(newPodcastInterestingRes.body.answer, /Siniar ini penting/);
 assert.doesNotMatch(newPodcastInterestingRes.body.answer, /belum tersedia/);
 
+const newPodcastContentRes = createRes();
+await handler(createReq({ question: "apa yang disampaikan", podcastId: "kompas-professional-mining" }), newPodcastContentRes);
+assert.equal(newPodcastContentRes.statusCode, 200);
+assert.match(newPodcastContentRes.body.answer, /Krisis pasokan batu bara/);
+assert.doesNotMatch(newPodcastContentRes.body.answer, /belum tersedia/);
+
 const newPodcastDefinitionRes = createRes();
 await handler(createReq({ question: "Apa itu Kompas Professional Mining?", podcastId: "kompas-professional-mining" }), newPodcastDefinitionRes);
 assert.equal(newPodcastDefinitionRes.statusCode, 200);

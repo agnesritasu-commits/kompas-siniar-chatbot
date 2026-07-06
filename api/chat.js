@@ -85,6 +85,16 @@ export default async function handler(req, res) {
       });
     }
 
+    const contentAnswer = getContentAnswer(question, filteredRows);
+
+    if (contentAnswer) {
+      return res.status(200).json({
+        answer: contentAnswer.text,
+        mode: "fallback",
+        sources: formatSources(contentAnswer.rows)
+      });
+    }
+
     const existenceAnswer = getExistenceAnswer(question, filteredRows);
 
     if (existenceAnswer) {
@@ -260,6 +270,25 @@ function getEvaluativeAnswer(question, rows) {
   const selectedRows = rows.filter((row) => {
     const topic = normalizeText(row.topic);
     return topic === "kenapa siniar penting";
+  });
+
+  return {
+    text: makeFriendlyDataAnswer(answer),
+    rows: selectedRows
+  };
+}
+
+function getContentAnswer(question, rows) {
+  const text = normalizeLooseText(question);
+  const asksContent = /\b(apa|hal|isi|topik|bahas|dibahas|membahas|disampaikan|sampaikan|omong|diomongkan|ngomong|cerita|diceritakan)\b.*\b(disampaikan|sampaikan|dibahas|membahas|bahas|isi|isinya|topik|omong|diomongkan|ngomong|cerita|diceritakan)\b/u.test(text);
+  if (!asksContent) return null;
+
+  const answer = findAnswerByTopic(rows, "ringkasan isi siniar") || findAnswerByTopic(rows, "deskripsi episode");
+  if (!answer) return null;
+
+  const selectedRows = rows.filter((row) => {
+    const topic = normalizeText(row.topic);
+    return topic === "ringkasan isi siniar" || topic === "deskripsi episode";
   });
 
   return {
