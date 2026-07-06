@@ -85,6 +85,16 @@ export default async function handler(req, res) {
       });
     }
 
+    const speakerStatementAnswer = getSpeakerStatementAnswer(question, filteredRows);
+
+    if (speakerStatementAnswer) {
+      return res.status(200).json({
+        answer: speakerStatementAnswer.text,
+        mode: "fallback",
+        sources: formatSources(speakerStatementAnswer.rows)
+      });
+    }
+
     const contentAnswer = getContentAnswer(question, filteredRows);
 
     if (contentAnswer) {
@@ -280,7 +290,7 @@ function getEvaluativeAnswer(question, rows) {
 
 function getContentAnswer(question, rows) {
   const text = normalizeLooseText(question);
-  const asksContent = /\b(apa|hal|isi|topik|pokok|bahasan|bahas|dibahas|membahas|disampaikan|sampaikan|omong|diomongkan|ngomong|cerita|diceritakan|inti|utama)\b.*\b(disampaikan|sampaikan|dibahas|membahas|bahas|bahasan|isi|isinya|topik|pokok|omong|diomongkan|ngomong|cerita|diceritakan|inti|utama)\b/u.test(text);
+  const asksContent = /\b(apa|hal|isi|topik|pokok|bahasan|bahas|dibahas|membahas|disampaikan|sampaikan|bilang|dibilang|katakan|dikatakan|ucap|diucapkan|omong|diomongkan|ngomong|cerita|diceritakan|inti|utama)\b.*\b(disampaikan|sampaikan|dibahas|membahas|bahas|bahasan|isi|isinya|topik|pokok|bilang|dibilang|katakan|dikatakan|ucap|diucapkan|omong|diomongkan|ngomong|cerita|diceritakan|inti|utama)\b/u.test(text);
   if (!asksContent) return null;
 
   const answer = findAnswerByTopic(rows, "ringkasan isi siniar") || findAnswerByTopic(rows, "deskripsi episode");
@@ -295,6 +305,57 @@ function getContentAnswer(question, rows) {
     text: makeFriendlyDataAnswer(answer),
     rows: selectedRows
   };
+}
+
+function getSpeakerStatementAnswer(question, rows) {
+  const text = normalizeLooseText(question);
+  const asksSpeakerStatement = /\b(narasumber|pembicara|tamu|dia|beliau)\b.*\b(bilang|dibilang|katakan|dikatakan|ucap|diucapkan|sampaikan|disampaikan|bahas|dibahas|membahas|omong|diomongkan|ngomong)\b|\b(apa|hal|isi|inti)\b.*\b(bilang|dibilang|katakan|dikatakan|ucap|diucapkan|sampaikan|disampaikan|bahas|dibahas|membahas|omong|diomongkan|ngomong)\b.*\b(narasumber|pembicara|tamu|dia|beliau)\b/u.test(text);
+  if (!asksSpeakerStatement) return null;
+
+  const name = findAnswerByTopic(rows, "nama narasumber") || "Narasumber";
+  const answer = findBestContentAnswer(rows);
+  if (!answer) return null;
+
+  const selectedRows = rows.filter((row) => {
+    const topic = normalizeText(row.topic);
+    return CONTENT_TOPICS.has(topic) || topic.includes("isi lengkap") || topic.includes("transkrip") || topic === "nama narasumber";
+  });
+
+  return {
+    text: makeSpeakerStatementText(name, answer),
+    rows: selectedRows
+  };
+}
+
+function findBestContentAnswer(rows) {
+  const preferredTopics = [
+    "ringkasan isi siniar",
+    "poin penting siniar",
+    "ringkasan dan time stamp",
+    "deskripsi episode"
+  ];
+
+  for (const topic of preferredTopics) {
+    const answer = findAnswerByTopic(rows, topic);
+    if (answer) return answer;
+  }
+
+  const transcriptRow = rows.find((row) => {
+    const topic = normalizeText(row.topic);
+    return topic.includes("isi lengkap") || topic.includes("transkrip");
+  });
+
+  return transcriptRow?.answer || "";
+}
+
+function makeSpeakerStatementText(name, answer) {
+  const points = extractAnswerPoints(answer, 4);
+  if (!points.length) return `${name} menyampaikan bahwa ${answer}`;
+
+  return [
+    `${name} menyampaikan beberapa poin utama:`,
+    ...points.map((point) => `- ${point}`)
+  ].join("\n");
 }
 
 function getExistenceAnswer(question, rows) {
@@ -553,10 +614,10 @@ function normalizeSpreadsheetRows(rows, podcastId = "kompas-siniar") {
 function semanticKeywordsForKey(key) {
   const normalized = String(key || "").trim().toLowerCase();
   const keywords = {
-    ringkasan_isi_siniar: "ringkasan isi bahas dibahas pembahasan diomongkan ngomong bicara dibicarakan disampaikan cerita inti episode topik utama pesan utama",
+    ringkasan_isi_siniar: "ringkasan isi bahas dibahas pembahasan diomongkan ngomong bicara dibicarakan disampaikan cerita inti episode topik utama pesan utama bilang dibilang dikatakan ucapan narasumber",
     kenapa_siniar_ini_penting: "penting menarik alasan rekomendasi perlu didengar layak disimak bagus nilai manfaat",
     deskripsi_episode: "deskripsi tentang episode pengantar konteks membahas diomongkan dibicarakan",
-    poin_penting_siniar: "poin penting bagian struktur segmen alur pembahasan bahasan pembicaraan",
+    poin_penting_siniar: "poin penting bagian struktur segmen alur pembahasan bahasan pembicaraan pernyataan narasumber disampaikan dikatakan",
     nama_narasumber: "narasumber pembicara tamu siapa",
     profil_narasumber: "profil narasumber latar belakang jabatan profesi",
     nama_host: "host pembawa acara pewara presenter fx agung timbul laksana",
@@ -599,8 +660,9 @@ function rankRows(rows, question, options = {}) {
   const normalizedQuestion = normalizeText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(normalizedQuestion);
   const contentQuestion = isContentQuestion(normalizedQuestion);
+  const speakerContentQuestion = isSpeakerContentQuestion(question, normalizedQuestion);
   const personQuestion = isPersonQuestion(question, normalizedQuestion);
-  const preferredRows = contentQuestion && !personQuestion
+  const preferredRows = (contentQuestion && (!personQuestion || speakerContentQuestion))
     ? rows.filter((row) => CONTENT_TOPICS.has(normalizeText(row.topic)))
     : evaluativeQuestion
     ? rows.filter((row) => {
@@ -628,6 +690,8 @@ function rankRows(rows, question, options = {}) {
       if (topic && normalizedQuestion.includes(topic)) score += 12;
       if (topic.includes(normalizedQuestion)) score += 8;
       if (contentQuestion && CONTENT_TOPICS.has(topic)) score += 28;
+      if (speakerContentQuestion && CONTENT_TOPICS.has(topic)) score += 30;
+      if (speakerContentQuestion && PERSON_TOPICS.has(topic) && topic !== "nama narasumber") score -= 35;
       if (contentQuestion && !personQuestion && PERSON_TOPICS.has(topic)) score -= 30;
       if (evaluativeQuestion && topic === "kenapa siniar penting") score += 40;
       if (evaluativeQuestion && topic === "deskripsi episode") score -= 18;
@@ -651,7 +715,14 @@ function rankRows(rows, question, options = {}) {
 }
 
 function isContentQuestion(normalizedQuestion) {
-  return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi)\b/u.test(normalizedQuestion);
+  return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|disampaikan|bilang|dibilang|katakan|dikatakan|ucap|diucapkan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi)\b/u.test(normalizedQuestion);
+}
+
+function isSpeakerContentQuestion(question, normalizedQuestion = "") {
+  const text = normalizeLooseText(`${question} ${normalizedQuestion}`);
+  const hasSpeaker = /\b(narasumber|pembicara|tamu|dia|beliau)\b/u.test(text);
+  const hasStatementVerb = /\b(bilang|dibilang|katakan|dikatakan|ucap|diucapkan|sampaikan|disampaikan|bahas|dibahas|membahas|omong|diomongkan|ngomong|jelaskan|dijelaskan)\b/u.test(text);
+  return hasSpeaker && hasStatementVerb;
 }
 
 function isPersonQuestion(question, normalizedQuestion = "") {
