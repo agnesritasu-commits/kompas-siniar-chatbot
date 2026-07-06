@@ -84,13 +84,13 @@ export default async function handler(req, res) {
     const followUpContext = getFollowUpContext(question, history);
     const personContext = followUpContext || getDirectPersonContext(question, filteredRows);
     const directAnswer = getDirectDataAnswer(question, filteredRows);
-    const rankingQuestion = resolveFollowUpQuestion(question, personContext);
+    const rankingQuestion = expandQuestionForSearch(resolveFollowUpQuestion(question, personContext));
     const rankedRows = rankRows(filteredRows, rankingQuestion, {
       knownEntityReference: hasKnownEntityReference(rankingQuestion, filteredRows)
     });
     const relevantRows = (directAnswer?.rows?.length ? directAnswer.rows : rankedRows).slice(0, MAX_CONTEXT_ROWS);
 
-    if (!directAnswer && !relevantRows.length) {
+    if (!directAnswer && !relevantRows.length && !process.env.OPENAI_API_KEY) {
       return res.status(200).json({
         answer: makeMissingInfoAnswer(filteredRows, podcast),
         mode: "fallback",
@@ -98,7 +98,9 @@ export default async function handler(req, res) {
       });
     }
 
-    const fallbackAnswer = directAnswer?.text || makeFallbackAnswer(relevantRows, filteredRows, personContext);
+    const fallbackAnswer = directAnswer?.text || (relevantRows.length
+      ? makeFallbackAnswer(relevantRows, filteredRows, personContext)
+      : MISSING_INFO_MESSAGE);
     const contextRows = buildOpenAIContextRows(directAnswer?.rows || relevantRows, filteredRows);
     const sourceRows = directAnswer?.rows?.length ? directAnswer.rows : relevantRows;
 
@@ -138,6 +140,7 @@ export default async function handler(req, res) {
 
 function getDirectDataAnswer(question, rows) {
   return getEpisodeAnswer(question, rows) ||
+    getExactTermAnswer(question, rows) ||
     getContextAnswer(question, rows) ||
     getEvaluativeAnswer(question, rows) ||
     getSpeakerStatementAnswer(question, rows) ||
@@ -282,6 +285,33 @@ function resolveFollowUpQuestion(question, followUpContext) {
   return question;
 }
 
+function expandQuestionForSearch(question) {
+  const text = normalizeLooseText(`${question} ${normalizeText(question)}`);
+  const expansions = [];
+  const rules = [
+    [/\b(ngomongin|ngomong|diomongin|omongin|omong|bahasin|ngebahas|bahas|dibahas|ceritain|cerita|ulas|kupas)\b/u, "ringkasan isi siniar topik utama pembahasan dibahas disampaikan"],
+    [/\b(bilang|dibilang|katanya|kata|nyebut|sebut|disebut|sampaikan|disampaikan|jelasin|menjelaskan)\b/u, "pernyataan narasumber pembicara menyampaikan menjelaskan"],
+    [/\b(pembicara|tamu)\b/u, "narasumber nama narasumber profil narasumber"],
+    [/\b(host|pembawa|pewara|moderator)\b/u, "host nama host profil host"],
+    [/\b(intinya|inti|garis besar|kesimpulan|simpulan|summary|ringkasannya|ringkas|rangkuman)\b/u, "ringkasan isi siniar poin penting topik utama"],
+    [/\b(konteks|latar|background|awalnya|mulanya|situasinya|kenapa dibuat|mengapa dibuat)\b/u, "deskripsi episode konteks latar belakang kenapa siniar penting"],
+    [/\b(problem|masalah|persoalan|isu|sengkarut|kendala|tantangan|hambatan)\b/u, "persoalan masalah isu tantangan ringkasan isi siniar poin penting"],
+    [/\b(solusi|saran|usul|jalan keluar|rekomendasi|cara mencegah)\b/u, "solusi usulan rekomendasi poin penting ringkasan isi siniar"],
+    [/\b(menarik|penting|kenapa perlu|perlu ditonton|layak ditonton|manfaat)\b/u, "kenapa siniar ini penting alasan manfaat rekomendasi"],
+    [/\b(maksud|artinya|arti|definisi|apa sih|itu apa)\b/u, "apa itu definisi istilah maksud"],
+    [/\b(data|stok|monitoring|pantau|terintegrasi)\b/u, "data stok sistem monitoring terintegrasi koordinasi"],
+    [/\b(listrik|mati lampu|pemadaman|byarpet)\b/u, "PLTU pasokan batu bara pemadaman listrik krisis"],
+    [/\b(sepakbola|bola|piala dunia|catenaccio)\b/u, "sepak bola Piala Dunia catenaccio ekonomi"]
+  ];
+
+  for (const [pattern, expansion] of rules) {
+    if (pattern.test(text)) expansions.push(expansion);
+  }
+
+  if (!expansions.length) return question;
+  return `${question} ${expansions.join(" ")}`;
+}
+
 function getEpisodeAnswer(question, rows) {
   const text = normalizeLooseText(question);
   const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(text);
@@ -337,6 +367,26 @@ function getContextAnswer(question, rows) {
       ...parts
     ].filter(Boolean).join("\n"),
     rows: selectedRows
+  };
+}
+
+function getExactTermAnswer(question, rows) {
+  if (!isTermQuestion(question)) return null;
+
+  const termTokens = Array.from(tokenize(question));
+  if (!termTokens.length) return null;
+
+  const row = rows.find((candidate) => {
+    const topic = normalizeLooseText(candidate.topic);
+    const searchableTopic = normalizeText(candidate.topic);
+    return topic.startsWith("apa itu") && termTokens.some((token) => searchableTopic.includes(token));
+  });
+
+  if (!row?.answer) return null;
+
+  return {
+    text: makeFriendlyDataAnswer(row.answer),
+    rows: [row]
   };
 }
 
@@ -431,7 +481,7 @@ function makeSpeakerStatementText(name, answer) {
 
 function getExistenceAnswer(question, rows) {
   const text = normalizeLooseText(question);
-  const asksNarasumber = /\b(ada|punya|siapa)\b.*\bnarasumber\b|\bnarasumber\b.*\b(ada|siapa)\b/u.test(text);
+  const asksNarasumber = /\b(ada|punya|siapa)\b.*\b(narasumber|pembicara|tamu)\b|\b(narasumber|pembicara|tamu)\b.*\b(ada|siapa)\b/u.test(text);
   const asksHost = /\b(ada|punya|siapa)\b.*\b(host|pembawa acara|pewara)\b|\b(host|pembawa acara|pewara)\b.*\b(ada|siapa)\b/u.test(text);
 
   if (asksNarasumber) {
@@ -443,7 +493,7 @@ function getExistenceAnswer(question, rows) {
     });
 
     return {
-      text: `Ada. Narasumber episode ini adalah ${name}.`,
+      text: `Ada. Pembicara atau narasumber episode ini adalah ${name}.`,
       rows: selectedRows
     };
   }
@@ -784,6 +834,7 @@ function rankRows(rows, question, options = {}) {
       );
       const relevantEnough = score >= MIN_RELEVANCE_SCORE && (
         matchedTokens >= 2 ||
+        (contentQuestion && matchedTokens >= 1) ||
         strongTermMatch ||
         directTopicMatch ||
         personQuestion ||
@@ -799,7 +850,7 @@ function rankRows(rows, question, options = {}) {
 }
 
 function isContentQuestion(normalizedQuestion) {
-  return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|disampaikan|bilang|dibilang|katakan|dikatakan|ucap|diucapkan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi)\b/u.test(normalizedQuestion);
+  return /\b(omong|omongkan|ngomong|bicara|bicarakan|bahas|dibahas|membahas|pembahasan|sampaikan|disampaikan|bilang|dibilang|katakan|dikatakan|ucap|diucapkan|cerita|diceritakan|ulas|diulas|topik|inti|ringkasan|isinya|isi|problem|masalah|persoalan|isu|kendala|tantangan|hambatan|solusi|saran|usul|rekomendasi)\b/u.test(normalizedQuestion);
 }
 
 function isContextQuestion(question, normalizedQuestion = "") {
@@ -823,7 +874,7 @@ function isSpeakerContentQuestion(question, normalizedQuestion = "") {
 }
 
 function isPersonQuestion(question, normalizedQuestion = "") {
-  return /\b(siapa|profil|latar|belakang|jabatan|profesi|narasumber|host|pembawa|pewara)\b/u.test(
+  return /\b(siapa|profil|latar|belakang|jabatan|profesi|narasumber|pembicara|tamu|host|pembawa|pewara)\b/u.test(
     normalizeLooseText(`${question} ${normalizedQuestion}`)
   );
 }
