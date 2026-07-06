@@ -396,7 +396,7 @@ function getUtilityAnswer(question) {
     return "Terima kasih. Saya siap membantu menyajikan informasi dari data episode ini secara jelas dan singkat. Silakan ajukan pertanyaan tentang narasumber, ringkasan, topik, atau istilah dalam siniar.";
   }
 
-  const identityOnly = /^(siapa kamu|kamu siapa|ini apa|chatbot apa|apa ini)$/u;
+  const identityOnly = /^(siapa kamu|kamu siapa|ini apa|chatbot apa|apa ini|dia apa|ini bot apa|bot apa ini)$/u;
   if (identityOnly.test(text)) {
     return "Saya chatbot Kompas Siniar. Saya membantu menyajikan informasi episode secara singkat, sopan, dan mudah dipahami.";
   }
@@ -411,9 +411,9 @@ function getUtilityAnswer(question) {
     return "Tidak apa-apa. Silakan lanjutkan dengan pertanyaan tentang episode ini. Saya akan menjawab berdasarkan data yang tersedia.";
   }
 
-  const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|cara pakai|mau tanya apa|contoh pertanyaan|aku bisa tanya apa|saya bisa tanya apa)$/u;
+  const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|dia bisa apa|bisa apa|bisa ngapain|apa kemampuannya|kemampuannya apa|apa kemampuanmu|apa fiturmu|fiturnya apa|fungsinya apa|gunanya apa|cara pakai|mau tanya apa|contoh pertanyaan|aku bisa tanya apa|saya bisa tanya apa)$/u;
   if (helpOnly.test(text)) {
-    return "Anda dapat bertanya tentang hal yang tersedia dalam data episode. Contohnya: siapa narasumbernya, apa ringkasan episode ini, apa itu catenaccio, kenapa siniar ini penting, atau apa poin penting pembahasannya.";
+    return "Saya dapat membantu menjawab pertanyaan tentang episode ini, seperti judul episode, narasumber, host, ringkasan, pokok bahasan, alasan episode ini penting, istilah yang dibahas, dan tautan untuk menonton episode.";
   }
 
   const unsupportedChatOnly = /^(cerita dong|ngobrol dong|temani aku|ayo ngobrol|boleh ngobrol|aku bosan|lucu dong|kasih jokes|bercanda dong)$/u;

@@ -63,11 +63,23 @@ assert.equal(identityRes.body.mode, "utility");
 assert.match(identityRes.body.answer, /chatbot Kompas Siniar/);
 assert.match(identityRes.body.answer, /mudah dipahami/);
 
+const looseIdentityRes = createRes();
+await handler(createReq({ question: "Dia apa?" }), looseIdentityRes);
+assert.equal(looseIdentityRes.statusCode, 200);
+assert.equal(looseIdentityRes.body.mode, "utility");
+assert.match(looseIdentityRes.body.answer, /chatbot Kompas Siniar/);
+
 const helpRes = createRes();
 await handler(createReq({ question: "Kamu bisa apa?" }), helpRes);
 assert.equal(helpRes.statusCode, 200);
 assert.equal(helpRes.body.mode, "utility");
-assert.match(helpRes.body.answer, /Contohnya/);
+assert.match(helpRes.body.answer, /Saya dapat membantu/);
+
+const capabilityRes = createRes();
+await handler(createReq({ question: "Apa kemampuannya?" }), capabilityRes);
+assert.equal(capabilityRes.statusCode, 200);
+assert.equal(capabilityRes.body.mode, "utility");
+assert.match(capabilityRes.body.answer, /ringkasan/);
 
 globalThis.fetch = async () => new Response([
   "podcast_id,episode_id,episode_title,topic,question,answer,keywords,source_url",
