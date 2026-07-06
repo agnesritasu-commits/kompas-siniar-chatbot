@@ -68,51 +68,31 @@ export default async function handler(req, res) {
     const episodeAnswer = getEpisodeAnswer(question, filteredRows);
 
     if (episodeAnswer) {
-      return res.status(200).json({
-        answer: episodeAnswer.text,
-        mode: "fallback",
-        sources: formatSources(episodeAnswer.rows)
-      });
+      return sendDraftAnswer(res, question, episodeAnswer.text, episodeAnswer.rows, podcast, filteredRows);
     }
 
     const evaluativeAnswer = getEvaluativeAnswer(question, filteredRows);
 
     if (evaluativeAnswer) {
-      return res.status(200).json({
-        answer: evaluativeAnswer.text,
-        mode: "fallback",
-        sources: formatSources(evaluativeAnswer.rows)
-      });
+      return sendDraftAnswer(res, question, evaluativeAnswer.text, evaluativeAnswer.rows, podcast, filteredRows);
     }
 
     const speakerStatementAnswer = getSpeakerStatementAnswer(question, filteredRows);
 
     if (speakerStatementAnswer) {
-      return res.status(200).json({
-        answer: speakerStatementAnswer.text,
-        mode: "fallback",
-        sources: formatSources(speakerStatementAnswer.rows)
-      });
+      return sendDraftAnswer(res, question, speakerStatementAnswer.text, speakerStatementAnswer.rows, podcast, filteredRows);
     }
 
     const contentAnswer = getContentAnswer(question, filteredRows);
 
     if (contentAnswer) {
-      return res.status(200).json({
-        answer: contentAnswer.text,
-        mode: "fallback",
-        sources: formatSources(contentAnswer.rows)
-      });
+      return sendDraftAnswer(res, question, contentAnswer.text, contentAnswer.rows, podcast, filteredRows);
     }
 
     const existenceAnswer = getExistenceAnswer(question, filteredRows);
 
     if (existenceAnswer) {
-      return res.status(200).json({
-        answer: existenceAnswer.text,
-        mode: "fallback",
-        sources: formatSources(existenceAnswer.rows)
-      });
+      return sendDraftAnswer(res, question, existenceAnswer.text, existenceAnswer.rows, podcast, filteredRows);
     }
 
     const followUpContext = getFollowUpContext(question, history);
@@ -163,6 +143,37 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "API belum bisa memproses pertanyaan. Coba beberapa saat lagi." });
+  }
+}
+
+async function sendDraftAnswer(res, question, draftAnswer, selectedRows, podcast, allRows) {
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(200).json({
+      answer: draftAnswer,
+      mode: "fallback",
+      sources: formatSources(selectedRows)
+    });
+  }
+
+  try {
+    const answer = await askOpenAI(question, selectedRows, podcast, draftAnswer);
+    const finalAnswer = isMissingInfoAnswer(answer.text)
+      ? makeMissingInfoAnswer(allRows, podcast)
+      : answer.text || draftAnswer;
+
+    return res.status(200).json({
+      answer: finalAnswer,
+      mode: "openai",
+      model: answer.model,
+      sources: isMissingInfoAnswer(answer.text) ? [] : formatSources(selectedRows)
+    });
+  } catch (error) {
+    console.error("OpenAI unavailable for direct answer, using fallback:", error);
+    return res.status(200).json({
+      answer: draftAnswer,
+      mode: "fallback",
+      sources: formatSources(selectedRows)
+    });
   }
 }
 
@@ -985,7 +996,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
               type: "input_text",
               text: [
                 "Anda adalah chatbot editorial Kompas.id untuk siniar.",
-                "Tugas Anda hanya merapikan draf jawaban yang sudah dipilih dari spreadsheet.",
+                "Tugas Anda menjawab dengan natural berdasarkan draf jawaban dan konteks spreadsheet yang sudah dipilih.",
                 "Jangan membuat jawaban baru di luar draf dan konteks spreadsheet.",
                 `Jika draf atau konteks tidak menjawab pertanyaan pengguna, jawab persis: ${MISSING_INFO_MESSAGE}`,
                 "Jangan mencari informasi di internet.",
@@ -993,9 +1004,11 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 "Jangan menambahkan interpretasi seperti penyebab, dampak, atau opini jika tidak tertulis jelas di data.",
                 "Jika pertanyaan meminta hal spesifik yang tidak disebut di data, katakan informasi tersebut belum tersedia.",
                 "Gunakan karakter pembawa berita televisi: sangat sopan, ramah, informatif, tenang, dan to the point.",
+                "Jawablah seperti manusia yang memahami pertanyaan, bukan seperti template sistem.",
+                "Boleh menyebut nama narasumber, host, episode, atau siniar jika ada di konteks dan membantu memperjelas jawaban.",
                 "Gunakan nada diplomatis, tidak menghakimi, dan tidak berspekulasi.",
                 "Saring dan sarikan jawaban dari data yang tersedia. Jangan menyalin teks panjang secara mentah jika bisa diringkas.",
-                "Gunakan kalimat pendek dan rapi. Hindari gaya terlalu akrab, bercanda, atau bertele-tele.",
+                "Gunakan kalimat pendek, jernih, dan mengalir. Hindari gaya terlalu akrab, bercanda, robotik, atau bertele-tele.",
                 "Jika jawaban berisi lebih dari satu gagasan, gunakan pointer dengan tanda '-' maksimal empat poin.",
                 "Setiap pointer harus mudah dipahami pembaca umum dan cukup satu kalimat pendek.",
                 "Untuk sapaan atau percakapan ringan, jawab secara hangat dan profesional tanpa menambahkan fakta baru.",
@@ -1014,7 +1027,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 `Draf jawaban dari data terpilih:\n${draftAnswer}`,
                 `Konteks spreadsheet:\n${context}`,
                 `Pertanyaan pengguna:\n${question}`,
-                "Rumuskan ulang draf secara natural, diplomatis, dan ringkas. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
+                "Jawab pertanyaan pengguna secara langsung. Rumuskan ulang draf secara natural, diplomatis, dan ringkas. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
               ].join("\n\n")
             }
           ]
