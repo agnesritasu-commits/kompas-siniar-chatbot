@@ -280,7 +280,7 @@ function getEvaluativeAnswer(question, rows) {
 
 function getContentAnswer(question, rows) {
   const text = normalizeLooseText(question);
-  const asksContent = /\b(apa|hal|isi|topik|bahas|dibahas|membahas|disampaikan|sampaikan|omong|diomongkan|ngomong|cerita|diceritakan)\b.*\b(disampaikan|sampaikan|dibahas|membahas|bahas|isi|isinya|topik|omong|diomongkan|ngomong|cerita|diceritakan)\b/u.test(text);
+  const asksContent = /\b(apa|hal|isi|topik|pokok|bahasan|bahas|dibahas|membahas|disampaikan|sampaikan|omong|diomongkan|ngomong|cerita|diceritakan|inti|utama)\b.*\b(disampaikan|sampaikan|dibahas|membahas|bahas|bahasan|isi|isinya|topik|pokok|omong|diomongkan|ngomong|cerita|diceritakan|inti|utama)\b/u.test(text);
   if (!asksContent) return null;
 
   const answer = findAnswerByTopic(rows, "ringkasan isi siniar") || findAnswerByTopic(rows, "deskripsi episode");
