@@ -396,9 +396,13 @@ function getUtilityAnswer(question) {
     return "Terima kasih. Saya siap membantu menyajikan informasi dari data episode ini secara jelas dan singkat. Silakan ajukan pertanyaan tentang narasumber, ringkasan, topik, atau istilah dalam siniar.";
   }
 
-  const identityOnly = /^(siapa kamu|kamu siapa|ini apa|chatbot apa|apa ini|dia apa|ini bot apa|bot apa ini)$/u;
+  const identityOnly = /^(siapa kamu|kamu siapa|kamu apa|kamu ini apa|ini apa|chatbot apa|chatbot ini apa|apa ini|dia apa|ini bot apa|bot apa ini|bot ini apa|ini chatbot apa|asisten apa|asisten ini apa)$/u;
   if (identityOnly.test(text)) {
-    return "Saya chatbot Kompas Siniar. Saya membantu menyajikan informasi episode secara singkat, sopan, dan mudah dipahami.";
+    return [
+      "Saya chatbot Kompas Siniar.",
+      "Saya membantu menyajikan informasi episode secara singkat, sopan, dan mudah dipahami.",
+      "Saya hanya menjawab berdasarkan data episode yang tersedia."
+    ].join(" ");
   }
 
   const thanksOnly = /^(terima kasih|makasih|thanks|thank you|oke|ok|sip|baik|mantap|siap|nice|bagus)$/u;
