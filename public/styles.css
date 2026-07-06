@@ -305,6 +305,15 @@ button svg {
   font-weight: 700;
 }
 
+.copyright {
+  margin: 0;
+  padding: 0 1.35em 0.85em;
+  color: var(--grey-lt);
+  font-size: 0.66rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
 .typing .bubble {
   display: flex;
   gap: 0.32em;
