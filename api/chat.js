@@ -5,7 +5,10 @@ const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const FALLBACK_OPENAI_MODEL = process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
 const MAX_CONTEXT_ROWS = 8;
-const MAX_OPENAI_CONTEXT_ROWS = 14;
+const MAX_OPENAI_CONTEXT_ROWS = 30;
+const MAX_OPENAI_CONTEXT_CHARS = 32000;
+const MAX_OPENAI_TRANSCRIPT_CHARS = 18000;
+const MAX_OPENAI_ROW_CHARS = 2800;
 const MAX_QUESTION_LENGTH = 600;
 const MIN_RELEVANCE_SCORE = 6;
 const LOW_VALUE_TOPICS = new Set(["nomor video", "judul", "link video", "tanggal tayang yyyymmdd", "bentuk video"]);
@@ -14,7 +17,10 @@ const CONTENT_TOPICS = new Set([
   "poin penting siniar",
   "deskripsi episode",
   "kenapa siniar penting",
-  "catenaccio"
+  "catenaccio",
+  "isi lengkap siniar sampai menit 6",
+  "isi lengkap siniar sampai menit 6 57",
+  "ringkasan dan time stamp"
 ]);
 const PERSON_TOPICS = new Set(["nama host", "profil host", "nama narasumber", "profil narasumber"]);
 
@@ -144,14 +150,11 @@ function buildOpenAIContextRows(primaryRows = [], allRows = []) {
     "ringkasan dan time stamp"
   ]);
 
+  const transcriptRows = allRows.filter((row) => isTranscriptTopic(row.topic));
   const anchorRows = allRows.filter((row) => {
     const topic = normalizeText(row.topic);
-    return anchorTopics.has(topic);
+    return anchorTopics.has(topic) && !isTranscriptTopic(row.topic);
   });
-  const transcriptRows = allRows.filter((row) => {
-    const topic = normalizeText(row.topic);
-    return topic.includes("isi lengkap") || topic.includes("transkrip");
-  }).slice(0, 2);
 
   return uniqueRows([
     ...primaryRows,
@@ -178,6 +181,14 @@ function uniqueRows(rows = []) {
   }
 
   return unique;
+}
+
+function isTranscriptTopic(topic) {
+  const normalized = normalizeText(topic);
+  return normalized.includes("isi lengkap") ||
+    normalized.includes("transkrip") ||
+    normalized.includes("timestamp") ||
+    normalized.includes("time stamp");
 }
 
 function setCors(req, res) {
@@ -952,6 +963,58 @@ function formatSources(rows) {
   }));
 }
 
+function formatOpenAIContext(rows, podcast) {
+  let usedChars = 0;
+  const sections = [];
+
+  for (const [index, row] of rows.entries()) {
+    const transcript = isTranscriptTopic(row.topic);
+    const answer = row.answer || row.ringkasan || row.summary || row.content || "";
+    const answerLimit = transcript ? MAX_OPENAI_TRANSCRIPT_CHARS : MAX_OPENAI_ROW_CHARS;
+    const remaining = MAX_OPENAI_CONTEXT_CHARS - usedChars;
+
+    if (remaining <= 0) break;
+
+    const section = [
+      `Data ${index + 1}${transcript ? " (transkrip/isi lengkap)" : ""}:`,
+      `Podcast: ${row.podcast_id || podcast.id}`,
+      `Episode: ${row.episode_id || ""}`,
+      `Judul episode: ${row.episode_title || ""}`,
+      `Topik: ${row.topic || ""}`,
+      `Pertanyaan data: ${row.question || ""}`,
+      `Jawaban data: ${limitText(answer, Math.min(answerLimit, remaining))}`,
+      `Kata kunci: ${limitText(row.keywords || "", 800)}`
+    ].join("\n");
+
+    if (usedChars + section.length > MAX_OPENAI_CONTEXT_CHARS) {
+      const roomForAnswer = Math.max(500, remaining - 500);
+      const shortenedSection = [
+        `Data ${index + 1}${transcript ? " (transkrip/isi lengkap)" : ""}:`,
+        `Podcast: ${row.podcast_id || podcast.id}`,
+        `Episode: ${row.episode_id || ""}`,
+        `Judul episode: ${row.episode_title || ""}`,
+        `Topik: ${row.topic || ""}`,
+        `Pertanyaan data: ${row.question || ""}`,
+        `Jawaban data: ${limitText(answer, roomForAnswer)}`,
+        `Kata kunci: ${limitText(row.keywords || "", 400)}`
+      ].join("\n");
+      sections.push(shortenedSection);
+      break;
+    }
+
+    sections.push(section);
+    usedChars += section.length + 2;
+  }
+
+  return sections.join("\n\n");
+}
+
+function limitText(value, maxChars) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, Math.max(0, maxChars - 3)).trim()}...`;
+}
+
 async function askOpenAI(question, rows, podcast, draftAnswer) {
   const models = Array.from(new Set([MODEL, FALLBACK_OPENAI_MODEL].filter(Boolean)));
   let lastError;
@@ -970,18 +1033,7 @@ async function askOpenAI(question, rows, podcast, draftAnswer) {
 }
 
 async function createOpenAIResponse(question, rows, podcast, model, draftAnswer) {
-  const context = rows.map((row, index) => {
-    return [
-      `Data ${index + 1}:`,
-      `Podcast: ${row.podcast_id || podcast.id}`,
-      `Episode: ${row.episode_id || ""}`,
-      `Judul episode: ${row.episode_title || ""}`,
-      `Topik: ${row.topic || ""}`,
-      `Pertanyaan data: ${row.question || ""}`,
-      `Jawaban data: ${row.answer || row.ringkasan || row.summary || row.content || ""}`,
-      `Kata kunci: ${row.keywords || ""}`
-    ].join("\n");
-  }).join("\n\n");
+  const context = formatOpenAIContext(rows, podcast);
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -991,6 +1043,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
     },
     body: JSON.stringify({
       model,
+      max_output_tokens: 450,
       input: [
         {
           role: "system",
@@ -999,21 +1052,26 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
               type: "input_text",
               text: [
                 "Anda adalah chatbot editorial Kompas.id untuk siniar.",
-                "Tugas Anda menjawab dengan natural berdasarkan draf jawaban dan konteks spreadsheet yang sudah dipilih.",
+                "Tugas Anda menjawab dengan natural berdasarkan draf jawaban, konteks spreadsheet, dan transkrip jika tersedia.",
                 "Jangan membuat jawaban baru di luar draf dan konteks spreadsheet.",
                 `Jika draf atau konteks tidak menjawab pertanyaan pengguna, jawab persis: ${MISSING_INFO_MESSAGE}`,
                 "Jangan mencari informasi di internet.",
                 "Jangan mengarang nama, tanggal, angka, kutipan, atau kesimpulan.",
                 "Jangan menambahkan interpretasi seperti penyebab, dampak, atau opini jika tidak tertulis jelas di data.",
                 "Jika pertanyaan meminta hal spesifik yang tidak disebut di data, katakan informasi tersebut belum tersedia.",
+                "Jika ada konteks bertopik transkrip, isi lengkap, timestamp, atau time stamp, baca dan gunakan konteks itu untuk memahami isi pembicaraan.",
                 "Gunakan karakter pembawa berita televisi: sangat sopan, ramah, informatif, tenang, dan to the point.",
                 "Jawablah seperti manusia yang memahami pertanyaan, bukan seperti template sistem.",
+                "Utamakan jawaban cerdas yang menyarikan maksud data, bukan daftar mentah dari spreadsheet.",
+                "Jawab langsung inti pertanyaan pada kalimat pertama.",
                 "Boleh menyebut nama narasumber, host, episode, atau siniar jika ada di konteks dan membantu memperjelas jawaban.",
                 "Gunakan nada diplomatis, tidak menghakimi, dan tidak berspekulasi.",
                 "Saring dan sarikan jawaban dari data yang tersedia. Jangan menyalin teks panjang secara mentah jika bisa diringkas.",
                 "Gunakan kalimat pendek, jernih, dan mengalir. Hindari gaya terlalu akrab, bercanda, robotik, atau bertele-tele.",
+                "Jawaban maksimal lima kalimat pendek.",
                 "Jika jawaban berisi lebih dari satu gagasan, gunakan pointer dengan tanda '-' maksimal empat poin.",
-                "Setiap pointer harus mudah dipahami pembaca umum dan cukup satu kalimat pendek.",
+                "Setiap pointer harus mudah dipahami pembaca umum, cukup satu kalimat pendek, dan tidak lebih dari 18 kata.",
+                "Jangan menulis frasa pembuka seperti 'Berdasarkan spreadsheet' kecuali saat menjelaskan informasi tidak tersedia.",
                 "Untuk sapaan atau percakapan ringan, jawab secara hangat dan profesional tanpa menambahkan fakta baru.",
                 "Jawaban harus ringkas, jelas, dan mudah dipahami pembaca.",
                 "Jangan gunakan Markdown heading atau teks tebal."
@@ -1030,7 +1088,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 `Draf jawaban dari data terpilih:\n${draftAnswer}`,
                 `Konteks spreadsheet:\n${context}`,
                 `Pertanyaan pengguna:\n${question}`,
-                "Jawab pertanyaan pengguna secara langsung. Rumuskan ulang draf secara natural, diplomatis, dan ringkas. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
+                "Jawab pertanyaan pengguna secara langsung. Baca konteks spreadsheet dan transkrip terlebih dahulu. Sarikan menjadi jawaban pendek yang cerdas, natural, diplomatis, dan informatif. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
               ].join("\n\n")
             }
           ]
