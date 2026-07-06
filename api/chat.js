@@ -5,6 +5,7 @@ const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 const FALLBACK_OPENAI_MODEL = process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
 const MAX_CONTEXT_ROWS = 8;
+const MAX_OPENAI_CONTEXT_ROWS = 14;
 const MAX_QUESTION_LENGTH = 600;
 const MIN_RELEVANCE_SCORE = 6;
 const LOW_VALUE_TOPICS = new Set(["nomor video", "judul", "link video", "tanggal tayang yyyymmdd", "bentuk video"]);
@@ -65,44 +66,16 @@ export default async function handler(req, res) {
     const podcast = selectPodcast(config, podcastId);
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl), podcast.id);
     const filteredRows = filterRows(rows, podcast.id, episodeId);
-    const episodeAnswer = getEpisodeAnswer(question, filteredRows);
-
-    if (episodeAnswer) {
-      return sendDraftAnswer(res, question, episodeAnswer.text, episodeAnswer.rows, podcast, filteredRows);
-    }
-
-    const evaluativeAnswer = getEvaluativeAnswer(question, filteredRows);
-
-    if (evaluativeAnswer) {
-      return sendDraftAnswer(res, question, evaluativeAnswer.text, evaluativeAnswer.rows, podcast, filteredRows);
-    }
-
-    const speakerStatementAnswer = getSpeakerStatementAnswer(question, filteredRows);
-
-    if (speakerStatementAnswer) {
-      return sendDraftAnswer(res, question, speakerStatementAnswer.text, speakerStatementAnswer.rows, podcast, filteredRows);
-    }
-
-    const contentAnswer = getContentAnswer(question, filteredRows);
-
-    if (contentAnswer) {
-      return sendDraftAnswer(res, question, contentAnswer.text, contentAnswer.rows, podcast, filteredRows);
-    }
-
-    const existenceAnswer = getExistenceAnswer(question, filteredRows);
-
-    if (existenceAnswer) {
-      return sendDraftAnswer(res, question, existenceAnswer.text, existenceAnswer.rows, podcast, filteredRows);
-    }
-
     const followUpContext = getFollowUpContext(question, history);
     const personContext = followUpContext || getDirectPersonContext(question, filteredRows);
+    const directAnswer = getDirectDataAnswer(question, filteredRows);
     const rankingQuestion = resolveFollowUpQuestion(question, personContext);
-    const relevantRows = rankRows(filteredRows, rankingQuestion, {
+    const rankedRows = rankRows(filteredRows, rankingQuestion, {
       knownEntityReference: hasKnownEntityReference(rankingQuestion, filteredRows)
-    }).slice(0, MAX_CONTEXT_ROWS);
+    });
+    const relevantRows = (directAnswer?.rows?.length ? directAnswer.rows : rankedRows).slice(0, MAX_CONTEXT_ROWS);
 
-    if (!relevantRows.length) {
+    if (!directAnswer && !relevantRows.length) {
       return res.status(200).json({
         answer: makeMissingInfoAnswer(filteredRows, podcast),
         mode: "fallback",
@@ -110,18 +83,20 @@ export default async function handler(req, res) {
       });
     }
 
-    const fallbackAnswer = makeFallbackAnswer(relevantRows, filteredRows, personContext);
+    const fallbackAnswer = directAnswer?.text || makeFallbackAnswer(relevantRows, filteredRows, personContext);
+    const contextRows = buildOpenAIContextRows(directAnswer?.rows || relevantRows, filteredRows);
+    const sourceRows = directAnswer?.rows?.length ? directAnswer.rows : relevantRows;
 
     if (!process.env.OPENAI_API_KEY) {
       return res.status(200).json({
         answer: fallbackAnswer,
         mode: "fallback",
-        sources: formatSources(relevantRows)
+        sources: formatSources(sourceRows)
       });
     }
 
     try {
-      const answer = await askOpenAI(question, relevantRows, podcast, fallbackAnswer);
+      const answer = await askOpenAI(question, contextRows, podcast, fallbackAnswer);
       const finalAnswer = isMissingInfoAnswer(answer.text)
         ? makeMissingInfoAnswer(filteredRows, podcast)
         : answer.text || fallbackAnswer;
@@ -130,14 +105,14 @@ export default async function handler(req, res) {
         answer: finalAnswer,
         mode: "openai",
         model: answer.model,
-        sources: isMissingInfoAnswer(answer.text) ? [] : formatSources(relevantRows)
+        sources: isMissingInfoAnswer(answer.text) ? [] : formatSources(sourceRows)
       });
     } catch (error) {
       console.error("OpenAI unavailable, using fallback:", error);
       return res.status(200).json({
         answer: fallbackAnswer,
         mode: "fallback",
-        sources: formatSources(relevantRows)
+        sources: formatSources(sourceRows)
       });
     }
   } catch (error) {
@@ -146,35 +121,63 @@ export default async function handler(req, res) {
   }
 }
 
-async function sendDraftAnswer(res, question, draftAnswer, selectedRows, podcast, allRows) {
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(200).json({
-      answer: draftAnswer,
-      mode: "fallback",
-      sources: formatSources(selectedRows)
-    });
+function getDirectDataAnswer(question, rows) {
+  return getEpisodeAnswer(question, rows) ||
+    getEvaluativeAnswer(question, rows) ||
+    getSpeakerStatementAnswer(question, rows) ||
+    getContentAnswer(question, rows) ||
+    getExistenceAnswer(question, rows);
+}
+
+function buildOpenAIContextRows(primaryRows = [], allRows = []) {
+  const anchorTopics = new Set([
+    "nama siniar",
+    "judul",
+    "nama narasumber",
+    "profil narasumber",
+    "nama host",
+    "profil host",
+    "ringkasan isi siniar",
+    "kenapa siniar penting",
+    "poin penting siniar",
+    "deskripsi episode",
+    "ringkasan dan time stamp"
+  ]);
+
+  const anchorRows = allRows.filter((row) => {
+    const topic = normalizeText(row.topic);
+    return anchorTopics.has(topic);
+  });
+  const transcriptRows = allRows.filter((row) => {
+    const topic = normalizeText(row.topic);
+    return topic.includes("isi lengkap") || topic.includes("transkrip");
+  }).slice(0, 2);
+
+  return uniqueRows([
+    ...primaryRows,
+    ...anchorRows,
+    ...transcriptRows,
+    ...allRows
+  ]).slice(0, MAX_OPENAI_CONTEXT_ROWS);
+}
+
+function uniqueRows(rows = []) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const row of rows) {
+    const key = [
+      normalizeText(row.topic),
+      normalizeLooseText(row.question),
+      normalizeLooseText(row.answer || row.ringkasan || row.summary || row.content)
+    ].join("|");
+
+    if (!key.trim() || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
   }
 
-  try {
-    const answer = await askOpenAI(question, selectedRows, podcast, draftAnswer);
-    const finalAnswer = isMissingInfoAnswer(answer.text)
-      ? makeMissingInfoAnswer(allRows, podcast)
-      : answer.text || draftAnswer;
-
-    return res.status(200).json({
-      answer: finalAnswer,
-      mode: "openai",
-      model: answer.model,
-      sources: isMissingInfoAnswer(answer.text) ? [] : formatSources(selectedRows)
-    });
-  } catch (error) {
-    console.error("OpenAI unavailable for direct answer, using fallback:", error);
-    return res.status(200).json({
-      answer: draftAnswer,
-      mode: "fallback",
-      sources: formatSources(selectedRows)
-    });
-  }
+  return unique;
 }
 
 function setCors(req, res) {
