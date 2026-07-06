@@ -54,7 +54,7 @@ form.addEventListener("submit", async (event) => {
     appendMessage(data.answer || "Informasi tersebut belum tersedia di data spreadsheet.", "bot", data.sources || []);
     rememberTurn("user", question);
     rememberTurn("assistant", data.answer || "", data.sources || []);
-    setStatus(data.mode === "fallback" ? "Jawaban memakai pencocokan kata kunci dari spreadsheet." : "");
+    setStatus(data.mode === "fallback" ? "Jawaban disusun dari data episode yang tersedia." : "");
   } catch (error) {
     typing.remove();
     appendMessage("Maaf, chatbot belum bisa menjawab saat ini. Coba lagi beberapa saat lagi.", "bot");

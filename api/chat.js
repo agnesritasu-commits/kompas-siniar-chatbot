@@ -254,7 +254,7 @@ function getEpisodeAnswer(question, rows) {
   });
 
   return {
-    text: `Episode ${podcastName} kali ini berjudul "${title}".`,
+    text: `Siniar: ${podcastName}. Episode kali ini berjudul "${title}".`,
     rows: selectedRows
   };
 }
@@ -383,12 +383,12 @@ function getUtilityAnswer(question) {
   const hasGreeting = /\b(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|assalamualaikum|permisi)\b/u.test(text);
   const asksWellbeing = /\b(apa kabar|kabarmu|kabar|sehat|lagi apa)\b/u.test(text);
   if (hasGreeting && asksWellbeing) {
-    return "Selamat datang. Terima kasih sudah bertanya. Saya siap membantu menyajikan informasi dari data episode ini secara singkat, sopan, dan informatif.";
+    return "Selamat datang. Terima kasih sudah bertanya. Saya siap membantu dengan jawaban yang singkat, sopan, dan informatif.";
   }
 
   const greetingOnly = /^(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|permisi|met pagi|met siang|met sore|met malam)$/u;
   if (greetingOnly.test(text)) {
-    return "Selamat datang. Saya akan membantu menjawab pertanyaan Anda tentang episode ini secara ringkas dan berdasarkan data spreadsheet. Anda dapat menanyakan narasumber, ringkasan, topik, atau istilah yang dibahas.";
+    return "Selamat datang. Silakan ajukan pertanyaan tentang episode ini. Saya dapat membantu menjawab soal narasumber, ringkasan, topik utama, atau istilah yang dibahas.";
   }
 
   const wellbeingOnly = /^(apa kabar|gimana kabarmu|bagaimana kabarmu|kabar baik|sehat|sehat kah|lagi apa)$/u;
@@ -398,7 +398,7 @@ function getUtilityAnswer(question) {
 
   const identityOnly = /^(siapa kamu|kamu siapa|ini apa|chatbot apa|apa ini)$/u;
   if (identityOnly.test(text)) {
-    return "Saya chatbot Kompas Siniar. Tugas saya menyajikan jawaban singkat, sopan, dan informatif berdasarkan data spreadsheet episode ini.";
+    return "Saya chatbot Kompas Siniar. Saya membantu menyajikan informasi episode secara singkat, sopan, dan mudah dipahami.";
   }
 
   const thanksOnly = /^(terima kasih|makasih|thanks|thank you|oke|ok|sip|baik|mantap|siap|nice|bagus)$/u;
@@ -418,7 +418,7 @@ function getUtilityAnswer(question) {
 
   const unsupportedChatOnly = /^(cerita dong|ngobrol dong|temani aku|ayo ngobrol|boleh ngobrol|aku bosan|lucu dong|kasih jokes|bercanda dong)$/u;
   if (unsupportedChatOnly.test(text)) {
-    return "Saya dapat merespons percakapan ringan secara sopan. Namun, untuk informasi substantif, saya hanya menggunakan data spreadsheet episode ini. Silakan ajukan pertanyaan tentang episode atau topik yang dibahas.";
+    return "Saya dapat merespons percakapan ringan secara sopan. Untuk informasi lebih mendalam, silakan ajukan pertanyaan tentang episode atau topik yang dibahas.";
   }
 
   return "";

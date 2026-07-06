@@ -61,7 +61,7 @@ await handler(createReq({ question: "Kamu siapa?" }), identityRes);
 assert.equal(identityRes.statusCode, 200);
 assert.equal(identityRes.body.mode, "utility");
 assert.match(identityRes.body.answer, /chatbot Kompas Siniar/);
-assert.match(identityRes.body.answer, /informatif/);
+assert.match(identityRes.body.answer, /mudah dipahami/);
 
 const helpRes = createRes();
 await handler(createReq({ question: "Kamu bisa apa?" }), helpRes);
@@ -279,7 +279,8 @@ assert.match(newPodcastHostRes.body.answer, /Aris Prasetyo/);
 const newPodcastEpisodeRes = createRes();
 await handler(createReq({ question: "episode apa", podcastId: "kompas-professional-mining" }), newPodcastEpisodeRes);
 assert.equal(newPodcastEpisodeRes.statusCode, 200);
-assert.match(newPodcastEpisodeRes.body.answer, /Episode Kompas Professional Mining kali ini berjudul/);
+assert.match(newPodcastEpisodeRes.body.answer, /Siniar: Kompas Professional Mining/);
+assert.match(newPodcastEpisodeRes.body.answer, /Episode kali ini berjudul/);
 assert.match(newPodcastEpisodeRes.body.answer, /Mengurai Sengkarut Tata Kelola Batubara/);
 assert.doesNotMatch(newPodcastEpisodeRes.body.answer, /belum tersedia/);
 
