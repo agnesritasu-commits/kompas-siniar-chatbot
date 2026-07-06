@@ -12,6 +12,15 @@ const MAX_OPENAI_ROW_CHARS = 2800;
 const MAX_QUESTION_LENGTH = 600;
 const MIN_RELEVANCE_SCORE = 6;
 const LOW_VALUE_TOPICS = new Set(["nomor video", "judul", "link video", "tanggal tayang yyyymmdd", "bentuk video"]);
+const DOMAIN_TERM_KEYWORDS = [
+  "dmo domestic market obligation kewajiban pasar domestik",
+  "hop hari operasi pembangkit stok batu bara pltu",
+  "pltu pembangkit listrik tenaga uap listrik batu bara",
+  "rkab rencana kerja anggaran biaya produksi tambang",
+  "pln perusahaan listrik negara pengguna batu bara",
+  "data stok sistem monitoring terintegrasi koordinasi kementerian esdm pln",
+  "batubara batu bara tambang pertambangan energi pasokan"
+].join(" ");
 const CONTENT_TOPICS = new Set([
   "ringkasan isi siniar",
   "poin penting siniar",
@@ -676,19 +685,19 @@ function normalizeSpreadsheetRows(rows, podcastId = "kompas-siniar") {
 function semanticKeywordsForKey(key) {
   const normalized = String(key || "").trim().toLowerCase();
   const keywords = {
-    ringkasan_isi_siniar: "ringkasan isi bahas dibahas pembahasan diomongkan ngomong bicara dibicarakan disampaikan cerita inti episode topik utama pesan utama bilang dibilang dikatakan ucapan narasumber",
-    kenapa_siniar_ini_penting: "penting menarik alasan rekomendasi perlu didengar layak disimak bagus nilai manfaat",
-    deskripsi_episode: "deskripsi tentang episode pengantar konteks latar belakang situasi momentum alasan hadir membahas diomongkan dibicarakan",
-    poin_penting_siniar: "poin penting bagian struktur segmen alur pembahasan bahasan pembicaraan pernyataan narasumber disampaikan dikatakan",
+    ringkasan_isi_siniar: `ringkasan isi bahas dibahas pembahasan diomongkan ngomong bicara dibicarakan disampaikan cerita inti episode topik utama pesan utama bilang dibilang dikatakan ucapan narasumber ${DOMAIN_TERM_KEYWORDS}`,
+    kenapa_siniar_ini_penting: `penting menarik alasan rekomendasi perlu didengar layak disimak bagus nilai manfaat ${DOMAIN_TERM_KEYWORDS}`,
+    deskripsi_episode: `deskripsi tentang episode pengantar konteks latar belakang situasi momentum alasan hadir membahas diomongkan dibicarakan ${DOMAIN_TERM_KEYWORDS}`,
+    poin_penting_siniar: `poin penting bagian struktur segmen alur pembahasan bahasan pembicaraan pernyataan narasumber disampaikan dikatakan ${DOMAIN_TERM_KEYWORDS}`,
     nama_narasumber: "narasumber pembicara tamu siapa",
     profil_narasumber: "profil narasumber latar belakang jabatan profesi",
     nama_host: "host pembawa acara pewara presenter fx agung timbul laksana",
     profil_host: "profil host pembawa acara pewara presenter",
     apa_itu_catenaccio: "catenaccio arti definisi maksud istilah taktik sepak bola",
     apa_itu_kompas_professional_mining: "kompas professional mining profesional pertambangan mineral batubara batu bara definisi tentang",
-    isi_lengkap_siniar_sampai_menit_6: "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit dmo domestic market obligation rkab hop",
-    "isi_lengkap_siniar_sampai_menit_6:57": "isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit dmo domestic market obligation rkab hop",
-    ringkasan_dan_time_stamp: "ringkasan timestamp time stamp menit alur bagian segmen pembahasan dmo domestic market obligation rkab hop"
+    isi_lengkap_siniar_sampai_menit_6: `isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit ${DOMAIN_TERM_KEYWORDS}`,
+    "isi_lengkap_siniar_sampai_menit_6:57": `isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit ${DOMAIN_TERM_KEYWORDS}`,
+    ringkasan_dan_time_stamp: `ringkasan timestamp time stamp menit alur bagian segmen pembahasan ${DOMAIN_TERM_KEYWORDS}`
   };
   return keywords[normalized] || "";
 }
@@ -754,6 +763,8 @@ function rankRows(rows, question, options = {}) {
         score += weightedTokenScore(queryTokens, topic, 8);
         score += weightedTokenScore(queryTokens, keywords, 8);
         score += weightedTokenScore(queryTokens, answer, 7);
+        if (isTranscriptTopic(row.topic)) score += 6;
+        if (CONTENT_TOPICS.has(topic)) score += 5;
       }
       if (topic && normalizedQuestion.includes(topic)) score += 12;
       if (topic.includes(normalizedQuestion)) score += 8;
@@ -798,7 +809,10 @@ function isContextQuestion(question, normalizedQuestion = "") {
 
 function isTermQuestion(question, normalizedQuestion = "") {
   const text = normalizeLooseText(`${question} ${normalizedQuestion}`);
-  return /\b(apa itu|apa arti|artinya apa|maksudnya apa|maksud dari|jelaskan|definisi|istilah)\b/u.test(text);
+  const tokens = Array.from(tokenize(question));
+  const hasDomainTerm = /\b(dmo|hop|pltu|rkab|pln|batubara|batu bara|data stok|stok|monitoring|pasokan|pembangkit)\b/u.test(text);
+  const asksTerm = /\b(apa itu|apa arti|artinya apa|maksudnya apa|maksud dari|jelaskan|jelasin|definisi|istilah|terangkan)\b/u.test(text);
+  return asksTerm || (hasDomainTerm && tokens.length <= 3);
 }
 
 function isSpeakerContentQuestion(question, normalizedQuestion = "") {
