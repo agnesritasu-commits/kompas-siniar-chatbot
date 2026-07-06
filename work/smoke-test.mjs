@@ -261,6 +261,7 @@ globalThis.fetch = async () => new Response([
   "nama_narasumber,Ardhi Ishak",
   "profil_narasumber,Ketua Bidang Hubungan Industri dan Asosiasi Industri Perhimpunan Ahli Pertambangan Indonesia",
   "ringkasan_isi_siniar,Krisis pasokan batu bara untuk PLTU bukan disebabkan minimnya cadangan nasional, melainkan persoalan tata kelola dan koordinasi data.",
+  "kenapa_siniar_ini_penting,Siniar ini penting karena menjelaskan spekulasi pemadaman listrik dan persoalan pasokan batu bara.",
   "nama_siniar,Kompas Professional Mining",
   "apa_itu_kompas_professional_mining,Kompas Professional Mining adalah bagian dari harian Kompas yang fokus mengulas isu pertambangan."
 ].join("\n"));
@@ -281,6 +282,12 @@ assert.equal(newPodcastEpisodeRes.statusCode, 200);
 assert.match(newPodcastEpisodeRes.body.answer, /Episode Kompas Professional Mining kali ini berjudul/);
 assert.match(newPodcastEpisodeRes.body.answer, /Mengurai Sengkarut Tata Kelola Batubara/);
 assert.doesNotMatch(newPodcastEpisodeRes.body.answer, /belum tersedia/);
+
+const newPodcastInterestingRes = createRes();
+await handler(createReq({ question: "episode ini menarik tidak", podcastId: "kompas-professional-mining" }), newPodcastInterestingRes);
+assert.equal(newPodcastInterestingRes.statusCode, 200);
+assert.match(newPodcastInterestingRes.body.answer, /Siniar ini penting/);
+assert.doesNotMatch(newPodcastInterestingRes.body.answer, /belum tersedia/);
 
 const newPodcastDefinitionRes = createRes();
 await handler(createReq({ question: "Apa itu Kompas Professional Mining?", podcastId: "kompas-professional-mining" }), newPodcastDefinitionRes);

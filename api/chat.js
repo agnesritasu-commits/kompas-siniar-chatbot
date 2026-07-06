@@ -75,6 +75,16 @@ export default async function handler(req, res) {
       });
     }
 
+    const evaluativeAnswer = getEvaluativeAnswer(question, filteredRows);
+
+    if (evaluativeAnswer) {
+      return res.status(200).json({
+        answer: evaluativeAnswer.text,
+        mode: "fallback",
+        sources: formatSources(evaluativeAnswer.rows)
+      });
+    }
+
     const existenceAnswer = getExistenceAnswer(question, filteredRows);
 
     if (existenceAnswer) {
@@ -235,6 +245,25 @@ function getEpisodeAnswer(question, rows) {
 
   return {
     text: `Episode ${podcastName} kali ini berjudul "${title}".`,
+    rows: selectedRows
+  };
+}
+
+function getEvaluativeAnswer(question, rows) {
+  const text = normalizeLooseText(question);
+  const asksEvaluation = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(text);
+  if (!asksEvaluation) return null;
+
+  const answer = findAnswerByTopic(rows, "kenapa siniar ini penting");
+  if (!answer) return null;
+
+  const selectedRows = rows.filter((row) => {
+    const topic = normalizeText(row.topic);
+    return topic === "kenapa siniar penting";
+  });
+
+  return {
+    text: makeFriendlyDataAnswer(answer),
     rows: selectedRows
   };
 }
