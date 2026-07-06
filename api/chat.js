@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
-const FALLBACK_OPENAI_MODEL = process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_OPENAI_CONTEXT_ROWS = 30;
@@ -1144,20 +1143,8 @@ function limitText(value, maxChars) {
 }
 
 async function askOpenAI(question, rows, podcast, draftAnswer) {
-  const models = Array.from(new Set([MODEL, FALLBACK_OPENAI_MODEL].filter(Boolean)));
-  let lastError;
-
-  for (const model of models) {
-    try {
-      const text = await createOpenAIResponse(question, rows, podcast, model, draftAnswer);
-      return { text, model };
-    } catch (error) {
-      lastError = error;
-      console.error(`OpenAI model failed (${model}):`, error);
-    }
-  }
-
-  throw lastError;
+  const text = await createOpenAIResponse(question, rows, podcast, MODEL, draftAnswer);
+  return { text, model: MODEL };
 }
 
 async function createOpenAIResponse(question, rows, podcast, model, draftAnswer) {
