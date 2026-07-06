@@ -275,6 +275,13 @@ await handler(createReq({ question: "ada host?", podcastId: "kompas-professional
 assert.equal(newPodcastHostRes.statusCode, 200);
 assert.match(newPodcastHostRes.body.answer, /Aris Prasetyo/);
 
+const newPodcastEpisodeRes = createRes();
+await handler(createReq({ question: "episode apa", podcastId: "kompas-professional-mining" }), newPodcastEpisodeRes);
+assert.equal(newPodcastEpisodeRes.statusCode, 200);
+assert.match(newPodcastEpisodeRes.body.answer, /Episode Kompas Professional Mining kali ini berjudul/);
+assert.match(newPodcastEpisodeRes.body.answer, /Mengurai Sengkarut Tata Kelola Batubara/);
+assert.doesNotMatch(newPodcastEpisodeRes.body.answer, /belum tersedia/);
+
 const newPodcastDefinitionRes = createRes();
 await handler(createReq({ question: "Apa itu Kompas Professional Mining?", podcastId: "kompas-professional-mining" }), newPodcastDefinitionRes);
 assert.equal(newPodcastDefinitionRes.statusCode, 200);

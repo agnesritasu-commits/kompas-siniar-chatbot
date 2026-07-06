@@ -65,6 +65,16 @@ export default async function handler(req, res) {
     const podcast = selectPodcast(config, podcastId);
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl), podcast.id);
     const filteredRows = filterRows(rows, podcast.id, episodeId);
+    const episodeAnswer = getEpisodeAnswer(question, filteredRows);
+
+    if (episodeAnswer) {
+      return res.status(200).json({
+        answer: episodeAnswer.text,
+        mode: "fallback",
+        sources: formatSources(episodeAnswer.rows)
+      });
+    }
+
     const existenceAnswer = getExistenceAnswer(question, filteredRows);
 
     if (existenceAnswer) {
@@ -205,6 +215,28 @@ function resolveFollowUpQuestion(question, followUpContext) {
     return `${question} profil host nama host ${followUpContext.label}`;
   }
   return question;
+}
+
+function getEpisodeAnswer(question, rows) {
+  const text = normalizeLooseText(question);
+  const evaluativeQuestion = /\b(menarik|penting|bagus|rekomendasi|layak|disimak|didengar|manfaat|kenapa|mengapa)\b/u.test(text);
+  const asksEpisodeTitle = !evaluativeQuestion &&
+    (/\b(episode|judul|tema)\b.*\b(apa|berapa|kali ini)\b|\b(apa|ini)\b.*\b(episode|judul|tema)\b/u.test(text));
+  if (!asksEpisodeTitle) return null;
+
+  const title = findAnswerByTopic(rows, "judul");
+  if (!title) return null;
+
+  const podcastName = findAnswerByTopic(rows, "nama siniar") || "siniar ini";
+  const selectedRows = rows.filter((row) => {
+    const topic = normalizeText(row.topic);
+    return topic === "judul" || topic === "nama siniar" || topic === "ringkasan isi siniar";
+  });
+
+  return {
+    text: `Episode ${podcastName} kali ini berjudul "${title}".`,
+    rows: selectedRows
+  };
 }
 
 function getExistenceAnswer(question, rows) {
