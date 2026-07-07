@@ -1,0 +1,44 @@
+{
+  "defaultPodcastId": "kompas-siniar",
+  "podcasts": [
+    {
+      "id": "bongkar-data",
+      "name": "Bongkar Data",
+      "description": "Chatbot berbasis data publik untuk episode Bongkar Data.",
+      "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vT1iDwpeIDLcdzWaTYaNtQuBxwJgoaSGcj1eWdu7M2kM6g-xylz_m97aHLTRqVv44AsUbul8K-xQRGE/pub?gid=0&single=true&output=csv",
+      "episodes": [
+        {
+          "id": "video_3",
+          "title": "Kurs Dolar AS Tidak Pengaruhi Masyarakat Desa, Fakta atau Mitos?",
+          "sheet": "Sheet1"
+        }
+      ]
+    },
+    {
+      "id": "kompas-professional-mining",
+      "name": "Kompas Professional Mining",
+      "description": "Chatbot berbasis data spreadsheet publik untuk episode Kompas Professional Mining.",
+      "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vSuMtRRvEb_k_vxSk73_ig9kJeuFPpMIMFMxDeBYVgNq_EQXthTjjOBpuipl3FzKf8KoHOxLcoIyj22/pub?gid=0&single=true&output=csv",
+      "episodes": [
+        {
+          "id": "video_2",
+          "title": "Mengurai Sengkarut Tata Kelola Batubara di Balik Insiden Byarpet Listrik",
+          "sheet": "Sheet1"
+        }
+      ]
+    },
+    {
+      "id": "kompas-siniar",
+      "name": "Kompas Siniar",
+      "description": "Chatbot berbasis data spreadsheet publik untuk episode siniar Kompas.",
+      "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9qeSDLLEX7iRvUfZA3iE1oXcyrVAVPcrVkTUv-rvoKMQzxX62snvBiMsiblSlDUyMcZOv1CTZrtyP/pub?gid=0&single=true&output=csv",
+      "episodes": [
+        {
+          "id": "video_1",
+          "title": "Chatib Basri: Piala Dunia 2026 dan Catenaccio Ekonomi Indonesia",
+          "sheet": "Sheet1"
+        }
+      ]
+    }
+  ]
+}
