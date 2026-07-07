@@ -18,7 +18,10 @@ const DOMAIN_TERM_KEYWORDS = [
   "rkab rencana kerja anggaran biaya produksi tambang",
   "pln perusahaan listrik negara pengguna batu bara",
   "data stok sistem monitoring terintegrasi koordinasi kementerian esdm pln",
-  "batubara batu bara tambang pertambangan energi pasokan"
+  "batubara batu bara tambang pertambangan energi pasokan",
+  "kurs dolar dollar as rupiah nilai tukar pelemahan mata uang",
+  "desa pedesaan masyarakat desa dampak ekonomi harga barang",
+  "litbang kompas survei data analisis penelitian ekonomi"
 ].join(" ");
 const CONTENT_TOPICS = new Set([
   "ringkasan isi siniar",
@@ -165,7 +168,10 @@ function buildOpenAIContextRows(primaryRows = [], allRows = []) {
   const transcriptRows = allRows.filter((row) => isTranscriptTopic(row.topic));
   const anchorRows = allRows.filter((row) => {
     const topic = normalizeText(row.topic);
-    return anchorTopics.has(topic) && !isTranscriptTopic(row.topic);
+    return (anchorTopics.has(topic) ||
+      topic.startsWith("nama narasumber") ||
+      topic.startsWith("profil narasumber")) &&
+      !isTranscriptTopic(row.topic);
   });
 
   return uniqueRows([
@@ -429,16 +435,16 @@ function getContentAnswer(question, rows) {
 
 function getSpeakerStatementAnswer(question, rows) {
   const text = normalizeLooseText(question);
-  const asksSpeakerStatement = /\b(narasumber|pembicara|tamu|dia|beliau)\b.*\b(bilang|dibilang|katakan|dikatakan|ucap|diucapkan|sampaikan|disampaikan|bahas|dibahas|membahas|omong|diomongkan|ngomong)\b|\b(apa|hal|isi|inti)\b.*\b(bilang|dibilang|katakan|dikatakan|ucap|diucapkan|sampaikan|disampaikan|bahas|dibahas|membahas|omong|diomongkan|ngomong)\b.*\b(narasumber|pembicara|tamu|dia|beliau)\b/u.test(text);
+  const asksSpeakerStatement = /\b(narasumber(?:nya)?|pembicara(?:nya)?|tamu(?:nya)?|dia|beliau)\b.*\b(bilang|dibilang|katakan|dikatakan|ucap|diucapkan|sampaikan|disampaikan|bahas|dibahas|membahas|omong|diomongkan|ngomong)\b|\b(apa|hal|isi|inti)\b.*\b(bilang|dibilang|katakan|dikatakan|ucap|diucapkan|sampaikan|disampaikan|bahas|dibahas|membahas|omong|diomongkan|ngomong)\b.*\b(narasumber(?:nya)?|pembicara(?:nya)?|tamu(?:nya)?|dia|beliau)\b/u.test(text);
   if (!asksSpeakerStatement) return null;
 
-  const name = findAnswerByTopic(rows, "nama narasumber") || "Narasumber";
+  const name = formatList(findAnswersByTopicBase(rows, "nama narasumber")) || "Narasumber";
   const answer = findBestContentAnswer(rows);
   if (!answer) return null;
 
   const selectedRows = rows.filter((row) => {
     const topic = normalizeText(row.topic);
-    return CONTENT_TOPICS.has(topic) || topic.includes("isi lengkap") || topic.includes("transkrip") || topic === "nama narasumber";
+    return CONTENT_TOPICS.has(topic) || topic.includes("isi lengkap") || topic.includes("transkrip") || topic.startsWith("nama narasumber");
   });
 
   return {
@@ -480,15 +486,15 @@ function makeSpeakerStatementText(name, answer) {
 
 function getExistenceAnswer(question, rows) {
   const text = normalizeLooseText(question);
-  const asksNarasumber = /\b(ada|punya|siapa)\b.*\b(narasumber|pembicara|tamu)\b|\b(narasumber|pembicara|tamu)\b.*\b(ada|siapa)\b/u.test(text);
+  const asksNarasumber = /\b(ada|punya|siapa)\b.*\b(narasumber(?:nya)?|pembicara(?:nya)?|tamu(?:nya)?)\b|\b(narasumber(?:nya)?|pembicara(?:nya)?|tamu(?:nya)?)\b.*\b(ada|siapa)\b/u.test(text);
   const asksHost = /\b(ada|punya|siapa)\b.*\b(host|pembawa acara|pewara)\b|\b(host|pembawa acara|pewara)\b.*\b(ada|siapa)\b/u.test(text);
 
   if (asksNarasumber) {
-    const name = findAnswerByTopic(rows, "nama narasumber");
+    const name = formatList(findAnswersByTopicBase(rows, "nama narasumber"));
     if (!name) return null;
     const selectedRows = rows.filter((row) => {
       const topic = normalizeText(row.topic);
-      return topic === "nama narasumber" || topic === "profil narasumber";
+      return topic.startsWith("nama narasumber") || topic.startsWith("profil narasumber");
     });
 
     return {
@@ -522,7 +528,7 @@ function getDirectPersonContext(question, rows) {
   const candidates = [
     {
       target: "narasumber",
-      name: findAnswerByTopic(rows, "nama narasumber")
+      name: formatList(findAnswersByTopicBase(rows, "nama narasumber"))
     },
     {
       target: "host",
@@ -733,6 +739,8 @@ function normalizeSpreadsheetRows(rows, podcastId = "kompas-siniar") {
 
 function semanticKeywordsForKey(key) {
   const normalized = String(key || "").trim().toLowerCase();
+  if (normalized.startsWith("nama_narasumber")) return "narasumber pembicara tamu siapa";
+  if (normalized.startsWith("profil_narasumber")) return "profil narasumber pembicara tamu latar belakang jabatan profesi";
   const keywords = {
     ringkasan_isi_siniar: `ringkasan isi bahas dibahas pembahasan diomongkan ngomong bicara dibicarakan disampaikan cerita inti episode topik utama pesan utama bilang dibilang dikatakan ucapan narasumber ${DOMAIN_TERM_KEYWORDS}`,
     kenapa_siniar_ini_penting: `penting menarik alasan rekomendasi perlu didengar layak disimak bagus nilai manfaat ${DOMAIN_TERM_KEYWORDS}`,
@@ -746,6 +754,8 @@ function semanticKeywordsForKey(key) {
     apa_itu_kompas_professional_mining: "kompas professional mining profesional pertambangan mineral batubara batu bara definisi tentang",
     isi_lengkap_siniar_sampai_menit_6: `isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit ${DOMAIN_TERM_KEYWORDS}`,
     "isi_lengkap_siniar_sampai_menit_6:57": `isi lengkap transkrip menit pembicaraan kutipan dibahas sampai menit ${DOMAIN_TERM_KEYWORDS}`,
+    transkrip_siniar: `transkrip siniar isi lengkap percakapan pembicaraan kutipan ${DOMAIN_TERM_KEYWORDS}`,
+    deskripsi_siniar: `deskripsi siniar tentang program profil acara ${DOMAIN_TERM_KEYWORDS}`,
     ringkasan_dan_time_stamp: `ringkasan timestamp time stamp menit alur bagian segmen pembahasan ${DOMAIN_TERM_KEYWORDS}`
   };
   return keywords[normalized] || "";
@@ -952,8 +962,12 @@ function makeFallbackAnswer(rows, allRows = [], followUpContext = null) {
 }
 
 function makePersonAnswer(rows, type) {
-  const name = findAnswerByTopic(rows, `nama ${type}`);
-  const profile = findAnswerByTopic(rows, `profil ${type}`);
+  const name = type === "narasumber"
+    ? formatList(findAnswersByTopicBase(rows, "nama narasumber"))
+    : findAnswerByTopic(rows, `nama ${type}`);
+  const profile = type === "narasumber"
+    ? findAnswersByTopicBase(rows, "profil narasumber").join(" ")
+    : findAnswerByTopic(rows, `profil ${type}`);
   const reason = type === "narasumber" ? findAnswerByTopic(rows, "alasan pemilihan narasumber") : "";
 
   if (!name && !profile && !reason) return MISSING_INFO_MESSAGE;
@@ -975,6 +989,25 @@ function makePersonAnswer(rows, type) {
 function findAnswerByTopic(rows, topic) {
   const wanted = normalizeText(topic);
   return rows.find((row) => normalizeText(row.topic) === wanted)?.answer || "";
+}
+
+function findAnswersByTopicBase(rows, topic) {
+  const wanted = normalizeText(topic);
+  return rows
+    .filter((row) => {
+      const rowTopic = normalizeText(row.topic);
+      return rowTopic === wanted || rowTopic.startsWith(`${wanted} `);
+    })
+    .map((row) => row.answer || "")
+    .filter(Boolean);
+}
+
+function formatList(values = []) {
+  const unique = [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+  if (!unique.length) return "";
+  if (unique.length === 1) return unique[0];
+  if (unique.length === 2) return `${unique[0]} dan ${unique[1]}`;
+  return `${unique.slice(0, -1).join(", ")}, dan ${unique.at(-1)}`;
 }
 
 function makeFriendlyDataAnswer(answer) {
