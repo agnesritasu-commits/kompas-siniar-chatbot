@@ -2,6 +2,19 @@
   "defaultPodcastId": "kompas-siniar",
   "podcasts": [
     {
+      "id": "bongkar-data",
+      "name": "Bongkar Data",
+      "description": "Chatbot berbasis data publik untuk episode Bongkar Data.",
+      "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vT1iDwpeIDLcdzWaTYaNtQuBxwJgoaSGcj1eWdu7M2kM6g-xylz_m97aHLTRqVv44AsUbul8K-xQRGE/pub?gid=0&single=true&output=csv",
+      "episodes": [
+        {
+          "id": "video_3",
+          "title": "Kurs Dolar AS Tidak Pengaruhi Masyarakat Desa, Fakta atau Mitos?",
+          "sheet": "Sheet1"
+        }
+      ]
+    },
+    {
       "id": "kompas-professional-mining",
       "name": "Kompas Professional Mining",
       "description": "Chatbot berbasis data spreadsheet publik untuk episode Kompas Professional Mining.",
