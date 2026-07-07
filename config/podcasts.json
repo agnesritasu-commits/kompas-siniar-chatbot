@@ -1,5 +1,5 @@
 {
-  "defaultPodcastId": "kompas-professional-mining",
+  "defaultPodcastId": "kompas-siniar",
   "podcasts": [
     {
       "id": "kompas-professional-mining",
@@ -21,8 +21,8 @@
       "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9qeSDLLEX7iRvUfZA3iE1oXcyrVAVPcrVkTUv-rvoKMQzxX62snvBiMsiblSlDUyMcZOv1CTZrtyP/pub?gid=0&single=true&output=csv",
       "episodes": [
         {
-          "id": "utama",
-          "title": "Semua episode",
+          "id": "video_1",
+          "title": "Chatib Basri: Piala Dunia 2026 dan Catenaccio Ekonomi Indonesia",
           "sheet": "Sheet1"
         }
       ]
