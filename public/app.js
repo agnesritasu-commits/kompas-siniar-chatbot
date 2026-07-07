@@ -95,11 +95,7 @@ function appendMessage(text, type, sources = []) {
   article.className = `message message--${type}`;
 
   if (type === "bot") {
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    avatar.setAttribute("aria-hidden", "true");
-    avatar.textContent = "K";
-    article.append(avatar);
+    article.append(createBotAvatar());
   }
 
   const bubble = document.createElement("div");
@@ -161,17 +157,32 @@ function createSourceLinks(sources) {
 function appendTyping() {
   const article = document.createElement("article");
   article.className = "message message--bot typing";
-  article.innerHTML = `
-    <div class="avatar" aria-hidden="true">K</div>
-    <div class="bubble" aria-label="Sedang menulis">
-      <span class="dot"></span>
-      <span class="dot"></span>
-      <span class="dot"></span>
-    </div>
+  article.append(createBotAvatar());
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.setAttribute("aria-label", "Sedang menulis");
+  bubble.innerHTML = `
+    <span class="dot"></span>
+    <span class="dot"></span>
+    <span class="dot"></span>
   `;
+  article.append(bubble);
   messages.append(article);
   scrollToLatest();
   return article;
+}
+
+function createBotAvatar() {
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.setAttribute("aria-hidden", "true");
+
+  const image = document.createElement("img");
+  image.src = "/assets/kompas-mark.jpeg";
+  image.alt = "";
+  avatar.append(image);
+
+  return avatar;
 }
 
 function resizeInput() {
