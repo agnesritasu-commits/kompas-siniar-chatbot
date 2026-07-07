@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
-const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data spreadsheet.";
+const MISSING_INFO_MESSAGE = "Informasi tersebut belum tersedia di data episode ini.";
 const MAX_CONTEXT_ROWS = 8;
 const MAX_OPENAI_CONTEXT_ROWS = 30;
 const MAX_OPENAI_CONTEXT_CHARS = 32000;
@@ -1051,7 +1051,7 @@ function makeMissingInfoAnswer(rows = [], podcast = {}) {
   const shortSummary = summarizeForFallback(summary);
 
   return [
-    `Maaf, informasi itu belum tersedia di data spreadsheet ${podcastName}.`,
+    `Maaf, informasi itu belum tersedia di data episode ${podcastName}.`,
     episodeTitle ? `- episode ini berjudul "${episodeTitle}".` : "",
     shortSummary ? `- Gambaran singkat: ${shortSummary}` : "",
     "- Silakan ajukan pertanyaan lain tentang episode ini."
@@ -1061,7 +1061,9 @@ function makeMissingInfoAnswer(rows = [], podcast = {}) {
 function isMissingInfoAnswer(value) {
   const text = normalizeLooseText(value);
   return text.includes("informasi tersebut belum tersedia di data spreadsheet") ||
-    text.includes("informasi itu belum tersedia di data spreadsheet");
+    text.includes("informasi itu belum tersedia di data spreadsheet") ||
+    text.includes("informasi tersebut belum tersedia di data episode") ||
+    text.includes("informasi itu belum tersedia di data episode");
 }
 
 function summarizeForFallback(value) {
@@ -1167,8 +1169,8 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
               type: "input_text",
               text: [
                 "Anda adalah chatbot editorial Kompas.id untuk siniar.",
-                "Tugas Anda menjawab dengan natural berdasarkan draf jawaban, konteks spreadsheet, dan transkrip jika tersedia.",
-                "Jangan membuat jawaban baru di luar draf dan konteks spreadsheet.",
+                "Tugas Anda menjawab dengan natural berdasarkan draf jawaban, konteks data episode, dan transkrip jika tersedia.",
+                "Jangan membuat jawaban baru di luar draf dan konteks data episode.",
                 `Jika draf atau konteks tidak menjawab pertanyaan pengguna, jawab persis: ${MISSING_INFO_MESSAGE}`,
                 "Jangan mencari informasi di internet.",
                 "Jangan mengarang nama, tanggal, angka, kutipan, atau kesimpulan.",
@@ -1179,7 +1181,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 "Jawablah seperti manusia yang memahami pertanyaan, bukan seperti template sistem.",
                 "Jika pertanyaan pengguna santai atau tidak formal, tetap jawab dengan bahasa Indonesia yang luwes, hangat, dan profesional.",
                 "Boleh memberi pengantar sangat singkat seperti 'Intinya,' atau 'Secara sederhana,' jika membuat jawaban lebih natural.",
-                "Utamakan jawaban cerdas yang menyarikan maksud data, bukan daftar mentah dari spreadsheet.",
+                "Utamakan jawaban cerdas yang menyarikan maksud data, bukan daftar mentah.",
                 "Jawab langsung inti pertanyaan pada kalimat pertama.",
                 "Boleh menyebut nama narasumber, host, episode, atau siniar jika ada di konteks dan membantu memperjelas jawaban.",
                 "Gunakan nada diplomatis, tidak menghakimi, dan tidak berspekulasi.",
@@ -1189,7 +1191,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 "Jawaban maksimal lima kalimat pendek.",
                 "Jika jawaban berisi lebih dari satu gagasan, gunakan pointer dengan tanda '-' maksimal empat poin.",
                 "Setiap pointer harus mudah dipahami pembaca umum, cukup satu kalimat pendek, dan tidak lebih dari 18 kata.",
-                "Jangan menulis frasa pembuka seperti 'Berdasarkan spreadsheet' kecuali saat menjelaskan informasi tidak tersedia.",
+                "Jangan menyebut istilah teknis sumber data dalam jawaban kepada pengguna.",
                 "Untuk sapaan atau percakapan ringan, jawab secara hangat dan profesional tanpa menambahkan fakta baru.",
                 "Jawaban harus ringkas, jelas, dan mudah dipahami pembaca.",
                 "Jangan gunakan Markdown heading atau teks tebal."
@@ -1204,9 +1206,9 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
               type: "input_text",
               text: [
                 `Draf jawaban dari data terpilih:\n${draftAnswer}`,
-                `Konteks spreadsheet:\n${context}`,
+                `Konteks data episode:\n${context}`,
                 `Pertanyaan pengguna:\n${question}`,
-                "Jawab pertanyaan pengguna secara langsung. Baca konteks spreadsheet dan transkrip terlebih dahulu. Sarikan menjadi jawaban pendek yang cerdas, natural, diplomatis, informatif, dan terasa seperti jawaban manusia. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru."
+                "Jawab pertanyaan pengguna secara langsung. Baca konteks data episode dan transkrip terlebih dahulu. Sarikan menjadi jawaban pendek yang cerdas, natural, diplomatis, informatif, dan terasa seperti jawaban manusia. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru. Jangan menyebut istilah teknis sumber data."
               ].join("\n\n")
             }
           ]
