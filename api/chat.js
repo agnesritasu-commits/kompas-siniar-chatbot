@@ -84,10 +84,11 @@ export default async function handler(req, res) {
     const podcast = selectPodcast(config, podcastId);
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl), podcast.id);
     const filteredRows = filterRows(rows, podcast.id, episodeId);
-    const followUpContext = getFollowUpContext(question, history);
-    const personContext = followUpContext || getDirectPersonContext(question, filteredRows);
-    const directAnswer = getDirectDataAnswer(question, filteredRows);
-    const rankingQuestion = expandQuestionForSearch(resolveFollowUpQuestion(question, personContext));
+    const normalizedQuestion = normalizeQuestionEntities(question, filteredRows);
+    const followUpContext = getFollowUpContext(normalizedQuestion, history);
+    const personContext = followUpContext || getDirectPersonContext(normalizedQuestion, filteredRows);
+    const directAnswer = getDirectDataAnswer(normalizedQuestion, filteredRows);
+    const rankingQuestion = expandQuestionForSearch(resolveFollowUpQuestion(normalizedQuestion, personContext));
     const rankedRows = rankRows(filteredRows, rankingQuestion, {
       knownEntityReference: hasKnownEntityReference(rankingQuestion, filteredRows)
     });
@@ -116,7 +117,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      const answer = await askOpenAI(question, contextRows, podcast, fallbackAnswer, answerLanguage);
+      const answer = await askOpenAI(normalizedQuestion, contextRows, podcast, fallbackAnswer, answerLanguage);
       const finalAnswer = isMissingInfoAnswer(answer.text)
         ? makeMissingInfoAnswer(filteredRows, podcast, answerLanguage)
         : answer.text || fallbackAnswer;
@@ -235,6 +236,82 @@ function sanitizeHistory(history) {
     content: String(item?.content || "").slice(0, 700),
     sources: Array.isArray(item?.sources) ? item.sources.slice(0, 3) : []
   }));
+}
+
+function normalizeQuestionEntities(question, rows = []) {
+  let text = String(question || "").trim();
+  if (!text) return "";
+
+  const knownNames = [
+    ...findAnswersByTopicBase(rows, "nama narasumber"),
+    findAnswerByTopic(rows, "nama host"),
+    findAnswerByTopic(rows, "nama siniar")
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  const hasKnownName = (...tokens) => tokens.some((token) => knownNames.includes(token));
+  const rules = [
+    {
+      when: hasKnownName("chatib", "basri"),
+      pattern: /\b(?:muhamad|muhammad|mohammad|mohamad)?\s*(?:khatib|hatib|catib|catip|cetib|cetip|chatip|chat it|cati|cathy)\s+(?:basri|basry|basrie)\b|\b(?:basry|basrie)\b/giu,
+      replacement: "Muhammad Chatib Basri"
+    },
+    {
+      when: hasKnownName("chatib", "basri"),
+      pattern: /\b(?:khatib|hatib|catib|catip|cetib|cetip|chatip|chat it|cati|cathy)\b/giu,
+      replacement: "Chatib"
+    },
+    {
+      when: hasKnownName("agung", "timbul", "laksana"),
+      pattern: /\b(?:ef\s*ex|efeks|efek|fx|f\s*x|epik)\s+agung(?:\s+timbul)?(?:\s+laksana)?\b|\b(?:agung|timbul|laksana)\b/giu,
+      replacement: "FX Agung Timbul Laksana"
+    },
+    {
+      when: hasKnownName("aris", "prasetyo"),
+      pattern: /\b(?:aris|haris)\s+(?:prasetyo|prasetio|praseto|prasetya)\b|\b(?:aris|haris|prasetyo|prasetio|prasetya)\b/giu,
+      replacement: "Aris Prasetyo"
+    },
+    {
+      when: hasKnownName("ardhi", "ishak"),
+      pattern: /\b(?:ardi|ardhy|ardy|ardhi|hardy|hardhi)\s+(?:ishak|ishaq|isak|isaac)\b|\b(?:ardhi|ardi|ardhy|ardy|ishak|ishaq|isak)\b/giu,
+      replacement: "Ardhi Ishak"
+    },
+    {
+      when: hasKnownName("agustina", "purwanti"),
+      pattern: /\bagustina\s+(?:purwanti|purwanto|perwanti|perwanto)\b|\b(?:agustina|purwanti|purwanto|perwanti)\b/giu,
+      replacement: "Agustina Purwanti"
+    },
+    {
+      when: hasKnownName("karina", "isna", "irawan"),
+      pattern: /\bkarina\s+(?:isna|ishna|isnah|isna')\s+(?:irawan|erawan)\b|\b(?:karina|isna|ishna|irawan|erawan)\b/giu,
+      replacement: "Karina Isna Irawan"
+    },
+    {
+      when: hasKnownName("susy", "sartika", "rumbo"),
+      pattern: /\b(?:susi|susy|suzy)\s+sartika\s+(?:rumbo|rumba|rumboh|rambo|rombo)\b|\b(?:susi|susy|suzy|rumbo|rumba|rambo|rombo)\b/giu,
+      replacement: "Susy Sartika Rumbo"
+    },
+    {
+      when: true,
+      pattern: /\b(?:d\s*m\s*o|di em o|dimo)\b/giu,
+      replacement: "DMO"
+    },
+    {
+      when: true,
+      pattern: /\b(?:h\s*o\s*p|ha o pe)\b/giu,
+      replacement: "HOP"
+    },
+    {
+      when: true,
+      pattern: /\b(?:p\s*l\s*t\s*u|pe el te u|pel tu)\b/giu,
+      replacement: "PLTU"
+    }
+  ];
+
+  for (const rule of rules) {
+    if (rule.when) text = text.replace(rule.pattern, rule.replacement);
+  }
+
+  return text.replace(/\s+/gu, " ").trim();
 }
 
 function getFollowUpContext(question, history) {
