@@ -56,9 +56,9 @@ function setPodcastTitle() {
   if (!chatTitle) return;
   const podcastName = podcastNames[podcastId] || formatPodcastName(podcastId);
   const episodeTitle = episodeTitles[podcastId] || "ini";
-  chatTitle.textContent = `Tanya ${podcastName}`;
+  chatTitle.textContent = `Kompas Siniar ${podcastName}`;
   if (chatDeck) {
-    chatDeck.textContent = `Temukan ringkasan episode ${episodeTitle}`;
+    chatDeck.textContent = `Tanya episode "${episodeTitle}"`;
   }
   document.title = `${podcastName} Chatbot`;
 }
