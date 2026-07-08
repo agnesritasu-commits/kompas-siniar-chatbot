@@ -30,6 +30,28 @@ const episodeSpeechTexts = {
   "kompas-professional-mining": "Mengurai Sengkarut Tata Kelola Batu Bara di Balik Insiden Byarpet Listrik",
   "kompas-siniar": "Chatib Basri: Piala Dunia dua ribu dua puluh enam dan Catenaccio Ekonomi Indonesia"
 };
+const podcastQuestionCorrections = {
+  "kompas-siniar": [
+    [/\b(?:muhamad|muhammad|mohammad|mohamad)?\s*(?:khatib|hatib|catib|catip|cetib|cetip|chatip|chat it|cati|cathy)\s+(?:basri|basry|basrie)\b/giu, "Muhammad Chatib Basri"],
+    [/\b(?:khatib|hatib|catib|catip|cetib|cetip|chatip|chat it|cati|cathy)\b/giu, "Chatib"],
+    [/\b(?:basry|basrie)\b/giu, "Basri"],
+    [/\b(?:ef\s*ex|efeks|efek|fx|f\s*x|epik)\s+agung(?:\s+timbul)?(?:\s+laksana)?\b/giu, "FX Agung Timbul Laksana"],
+    [/\b(?:agung|timbul|laksana)\b/giu, "FX Agung Timbul Laksana"]
+  ],
+  "kompas-professional-mining": [
+    [/\b(?:aris|haris)\s+(?:prasetyo|prasetio|praseto|prasetya)\b/giu, "Aris Prasetyo"],
+    [/\b(?:ardi|ardhy|ardy|ardhi|hardy|hardhi)\s+(?:ishak|ishaq|isak|isaac)\b/giu, "Ardhi Ishak"],
+    [/\b(?:ardhi|ardi|ardhy|ardy|ishak|ishaq|isak)\b/giu, "Ardhi Ishak"]
+  ],
+  "bongkar-data": [
+    [/\bagustina\s+(?:purwanti|purwanto|perwanti|perwanto)\b/giu, "Agustina Purwanti"],
+    [/\b(?:agustina|purwanti|purwanto|perwanti)\b/giu, "Agustina Purwanti"],
+    [/\bkarina\s+(?:isna|ishna|isnah|isna')\s+(?:irawan|erawan)\b/giu, "Karina Isna Irawan"],
+    [/\b(?:karina|isna|ishna|irawan|erawan)\b/giu, "Karina Isna Irawan"],
+    [/\b(?:susi|susy|suzy)\s+sartika\s+(?:rumbo|rumba|rumboh|rambo|rombo)\b/giu, "Susy Sartika Rumbo"],
+    [/\b(?:susi|susy|suzy|rumbo|rumba|rambo|rombo)\b/giu, "Susy Sartika Rumbo"]
+  ]
+};
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const phonePattern = /(?:\+?\d[\s().-]?){8,}\d/;
@@ -89,14 +111,8 @@ function normalizeRecognizedQuestion(value) {
   if (!text) return "";
 
   const replacements = [
-    [/\b(?:catib|catip|cetib|cetip|chatip|chat it|chatib)\s+(?:basri|basry|basrie)\b/giu, "Chatib Basri"],
-    [/\b(?:muhamad|muhammad|mohammad|mohamad)?\s*(?:catib|catip|cetib|cetip|chatip|chat it|chatib)\s+(?:basri|basry|basrie)\b/giu, "Muhammad Chatib Basri"],
-    [/\b(?:ef\s*ex|efeks|efek|fx|f\s*x)\s+agung(?:\s+timbul)?(?:\s+laksana)?\b/giu, "FX Agung Timbul Laksana"],
-    [/\bagung\s+timbul\s+laksana\b/giu, "FX Agung Timbul Laksana"],
-    [/\b(?:ardi|ardhy|ardy|ardhi)\s+(?:ishak|ishaq|isak)\b/giu, "Ardhi Ishak"],
-    [/\bagustina\s+(?:purwanti|purwanto|perwanti)\b/giu, "Agustina Purwanti"],
-    [/\bkarina\s+(?:isna|ishna|isnah)\s+irawan\b/giu, "Karina Isna Irawan"],
-    [/\b(?:susi|susy)\s+sartika\s+(?:rumbo|rumba|rumboh)\b/giu, "Susy Sartika Rumbo"],
+    ...Object.values(podcastQuestionCorrections).flat(),
+    ...(podcastQuestionCorrections[podcastId] || []),
     [/\bkompas\s+(?:profesional|professional)\s+mining\b/giu, "Kompas Professional Mining"],
     [/\bkompas\s+siniar\b/giu, "Kompas Siniar"],
     [/\btamu\s+kita\b/giu, "Tamu Kita"],
