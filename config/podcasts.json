@@ -29,7 +29,7 @@
     },
     {
       "id": "kompas-siniar",
-      "name": "Kompas Siniar",
+      "name": "Tamu Kita",
       "description": "Chatbot berbasis data spreadsheet publik untuk episode siniar Kompas.",
       "csvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9qeSDLLEX7iRvUfZA3iE1oXcyrVAVPcrVkTUv-rvoKMQzxX62snvBiMsiblSlDUyMcZOv1CTZrtyP/pub?gid=0&single=true&output=csv",
       "episodes": [
