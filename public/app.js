@@ -72,6 +72,8 @@ function formatPodcastName(value) {
 }
 
 async function submitQuestion(question) {
+  const answerLanguage = detectQuestionLanguage(question);
+
   if (containsSensitiveData(question)) {
     setStatus(privacyWarning, true);
     input.focus();
@@ -105,13 +107,13 @@ async function submitQuestion(question) {
       throw new Error(data.error || "Pertanyaan belum bisa diproses.");
     }
 
-    appendMessage(data.answer || "Informasi tersebut belum tersedia di data episode ini.", "bot", data.sources || []);
+    appendMessage(data.answer || "Informasi tersebut belum tersedia di data episode ini.", "bot", data.sources || [], answerLanguage);
     rememberTurn("user", question);
     rememberTurn("assistant", data.answer || "", data.sources || []);
     setStatus(data.mode === "fallback" ? "Jawaban disusun dari data episode yang tersedia." : "");
   } catch (error) {
     typing.remove();
-    appendMessage("Maaf, chatbot belum bisa menjawab saat ini. Coba lagi beberapa saat lagi.", "bot");
+    appendMessage("Maaf, chatbot belum bisa menjawab saat ini. Coba lagi beberapa saat lagi.", "bot", [], "id");
     setStatus(error.message, true);
   } finally {
     setLoading(false);
@@ -135,7 +137,7 @@ function rememberTurn(role, content, sources = []) {
   }
 }
 
-function appendMessage(text, type, sources = []) {
+function appendMessage(text, type, sources = [], language = "id") {
   const article = document.createElement("article");
   article.className = `message message--${type}`;
 
@@ -148,7 +150,7 @@ function appendMessage(text, type, sources = []) {
   bubble.textContent = text;
 
   if (type === "bot") {
-    const audioTools = createMessageAudioTools(text);
+    const audioTools = createMessageAudioTools(text, language);
     if (audioTools) {
       bubble.append(audioTools);
     }
@@ -204,7 +206,7 @@ function createSourceLinks(sources) {
   return wrapper;
 }
 
-function createMessageAudioTools(text) {
+function createMessageAudioTools(text, language = "id") {
   if (!canSpeak) return null;
 
   const wrapper = document.createElement("div");
@@ -221,20 +223,20 @@ function createMessageAudioTools(text) {
   `;
 
   button.addEventListener("click", () => {
-    speakText(text, button);
+    speakText(text, button, language);
   });
 
   wrapper.append(button);
   return wrapper;
 }
 
-function speakText(text, button) {
+function speakText(text, button, language = "id") {
   const cleanText = String(text || "").replace(/\s+/g, " ").trim();
   if (!cleanText || !canSpeak) return;
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(cleanText);
-  utterance.lang = detectSpeechLanguage(cleanText);
+  utterance.lang = speechLocaleForLanguage(language);
   utterance.rate = 0.96;
   utterance.pitch = 1;
 
@@ -252,11 +254,27 @@ function resetAudioButton(button) {
   button.setAttribute("aria-label", "Dengarkan jawaban");
 }
 
-function detectSpeechLanguage(text) {
+function detectQuestionLanguage(text) {
   const normalized = String(text || "").toLowerCase();
-  const englishScore = ["the", "this", "episode", "speaker", "host", "sorry", "available", "please", "question"].filter((word) => normalized.includes(word)).length;
-  const indonesianScore = ["ini", "episode", "siniar", "narasumber", "host", "maaf", "silakan", "pertanyaan"].filter((word) => normalized.includes(word)).length;
-  return englishScore > indonesianScore ? "en-US" : "id-ID";
+  const englishScore = countLanguageMatches(normalized, [
+    "hello", "hi", "thanks", "thank you", "what", "who", "why", "when", "where", "how",
+    "does", "do", "did", "is", "are", "can", "could", "please", "tell", "explain",
+    "summarize", "summary", "speaker", "guest", "topic", "about", "episode", "podcast"
+  ]);
+  const indonesianScore = countLanguageMatches(normalized, [
+    "halo", "hai", "terima kasih", "makasih", "apa", "siapa", "kenapa", "mengapa",
+    "bagaimana", "gimana", "tolong", "jelaskan", "ringkas", "ringkasan", "narasumber",
+    "pembicara", "bahas", "dibahas", "siniar", "episode"
+  ]);
+  return englishScore > indonesianScore ? "en" : "id";
+}
+
+function countLanguageMatches(text, words) {
+  return words.filter((word) => text.includes(word)).length;
+}
+
+function speechLocaleForLanguage(language) {
+  return language === "en" ? "en-US" : "id-ID";
 }
 
 function setupVoiceInput() {
