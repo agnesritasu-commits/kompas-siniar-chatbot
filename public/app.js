@@ -30,8 +30,11 @@ const canRecognizeSpeech = Boolean(SpeechRecognition);
 const canSpeak = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
 let recognition = null;
 let isListening = false;
+let speechVoices = [];
+let activeSpeechButton = null;
 
 setPodcastTitle();
+setupSpeechVoices();
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -231,27 +234,60 @@ function createMessageAudioTools(text, language = "id") {
 }
 
 function speakText(text, button, language = "id") {
-  const cleanText = String(text || "").replace(/\s+/g, " ").trim();
-  if (!cleanText || !canSpeak) return;
+  const cleanText = normalizeSpeechText(text);
+  const chunks = splitTextForSpeech(cleanText);
+  if (!chunks.length || !canSpeak) return;
 
+  if (button.classList.contains("audio-button--active")) {
+    stopSpeaking();
+    return;
+  }
+
+  stopSpeaking();
+  activeSpeechButton = button;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-  utterance.lang = speechLocaleForLanguage(language);
-  utterance.rate = 0.96;
-  utterance.pitch = 1;
 
   button.classList.add("audio-button--active");
   button.setAttribute("aria-label", "Hentikan suara");
 
-  utterance.onend = () => resetAudioButton(button);
-  utterance.onerror = () => resetAudioButton(button);
+  speakSpeechChunk(chunks, language, button);
+}
 
+function speakSpeechChunk(chunks, language, button) {
+  if (!chunks.length || activeSpeechButton !== button) {
+    resetAudioButton(button);
+    return;
+  }
+
+  const locale = speechLocaleForLanguage(language);
+  const utterance = new SpeechSynthesisUtterance(chunks.shift());
+  utterance.lang = locale;
+  utterance.voice = selectSpeechVoice(locale);
+  utterance.rate = language === "en" ? 0.92 : 0.9;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+
+  utterance.onend = () => {
+    window.setTimeout(() => speakSpeechChunk(chunks, language, button), 80);
+  };
+  utterance.onerror = () => resetAudioButton(button);
   window.speechSynthesis.speak(utterance);
+}
+
+function stopSpeaking() {
+  window.speechSynthesis.cancel();
+  if (activeSpeechButton) {
+    resetAudioButton(activeSpeechButton);
+  }
+  activeSpeechButton = null;
 }
 
 function resetAudioButton(button) {
   button.classList.remove("audio-button--active");
   button.setAttribute("aria-label", "Dengarkan jawaban");
+  if (activeSpeechButton === button) {
+    activeSpeechButton = null;
+  }
 }
 
 function detectQuestionLanguage(text) {
@@ -275,6 +311,95 @@ function countLanguageMatches(text, words) {
 
 function speechLocaleForLanguage(language) {
   return language === "en" ? "en-US" : "id-ID";
+}
+
+function setupSpeechVoices() {
+  if (!canSpeak) return;
+  speechVoices = window.speechSynthesis.getVoices();
+  const updateVoices = () => {
+    speechVoices = window.speechSynthesis.getVoices();
+  };
+
+  if (typeof window.speechSynthesis.addEventListener === "function") {
+    window.speechSynthesis.addEventListener("voiceschanged", updateVoices);
+  } else {
+    window.speechSynthesis.onvoiceschanged = updateVoices;
+  }
+}
+
+function selectSpeechVoice(locale) {
+  const voices = speechVoices.length ? speechVoices : window.speechSynthesis.getVoices();
+  const language = locale.split("-")[0].toLowerCase();
+  const matchingVoices = voices.filter((voice) => {
+    const voiceLang = String(voice.lang || "").toLowerCase();
+    return voiceLang === locale.toLowerCase() || voiceLang.startsWith(`${language}-`);
+  });
+
+  if (!matchingVoices.length) return null;
+
+  return matchingVoices
+    .map((voice) => ({
+      voice,
+      score: scoreSpeechVoice(voice, locale)
+    }))
+    .sort((a, b) => b.score - a.score)[0].voice;
+}
+
+function scoreSpeechVoice(voice, locale) {
+  const name = String(voice.name || "").toLowerCase();
+  const lang = String(voice.lang || "").toLowerCase();
+  const expected = locale.toLowerCase();
+  let score = 0;
+
+  if (lang === expected) score += 80;
+  if (lang.startsWith(expected.split("-")[0])) score += 40;
+  if (voice.localService) score += 8;
+  if (/\bgoogle\b|\bmicrosoft\b|\bsamantha\b|\balex\b|\bdamayanti\b|\bgadis\b/u.test(name)) score += 25;
+  if (/\bindonesia\b|\bbahasa\b|\bid-id\b/u.test(name) && expected === "id-id") score += 35;
+  if (/\benglish\b|\bus\b|\bunited states\b|\ben-us\b/u.test(name) && expected === "en-us") score += 35;
+
+  return score;
+}
+
+function normalizeSpeechText(value) {
+  return String(value || "")
+    .replace(/https?:\/\/\S+/giu, "")
+    .replace(/^\s*[-•]\s*/gmu, "")
+    .replace(/\s*[-•]\s+/gu, ". ")
+    .replace(/[“”]/gu, '"')
+    .replace(/[‘’]/gu, "'")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function splitTextForSpeech(value) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+
+  const sentences = text
+    .split(/(?<=[.!?])\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  const chunks = [];
+  let current = "";
+
+  for (const sentence of sentences.length ? sentences : [text]) {
+    if ((current + " " + sentence).trim().length <= 180) {
+      current = `${current} ${sentence}`.trim();
+      continue;
+    }
+
+    if (current) chunks.push(current);
+    if (sentence.length <= 180) {
+      current = sentence;
+    } else {
+      chunks.push(...sentence.match(/.{1,180}(?:\s|$)/gu).map((part) => part.trim()).filter(Boolean));
+      current = "";
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
 }
 
 function setupVoiceInput() {
