@@ -70,7 +70,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const utilityAnswer = getUtilityAnswer(question);
+    const answerLanguage = detectQuestionLanguage(question);
+    const utilityAnswer = getUtilityAnswer(question, answerLanguage);
     if (utilityAnswer) {
       return res.status(200).json({
         answer: utilityAnswer,
@@ -94,7 +95,7 @@ export default async function handler(req, res) {
 
     if (!directAnswer && !relevantRows.length && !process.env.OPENAI_API_KEY) {
       return res.status(200).json({
-        answer: makeMissingInfoAnswer(filteredRows, podcast),
+        answer: makeMissingInfoAnswer(filteredRows, podcast, answerLanguage),
         mode: "fallback",
         sources: []
       });
@@ -102,7 +103,7 @@ export default async function handler(req, res) {
 
     const fallbackAnswer = directAnswer?.text || (relevantRows.length
       ? makeFallbackAnswer(relevantRows, filteredRows, personContext)
-      : MISSING_INFO_MESSAGE);
+      : missingInfoMessageForLanguage(answerLanguage));
     const contextRows = buildOpenAIContextRows(directAnswer?.rows || relevantRows, filteredRows);
     const sourceRows = directAnswer?.rows?.length ? directAnswer.rows : relevantRows;
 
@@ -115,9 +116,9 @@ export default async function handler(req, res) {
     }
 
     try {
-      const answer = await askOpenAI(question, contextRows, podcast, fallbackAnswer);
+      const answer = await askOpenAI(question, contextRows, podcast, fallbackAnswer, answerLanguage);
       const finalAnswer = isMissingInfoAnswer(answer.text)
-        ? makeMissingInfoAnswer(filteredRows, podcast)
+        ? makeMissingInfoAnswer(filteredRows, podcast, answerLanguage)
         : answer.text || fallbackAnswer;
 
       return res.status(200).json({
@@ -557,7 +558,45 @@ function extractPersonName(value) {
   return "";
 }
 
-function getUtilityAnswer(question) {
+function detectQuestionLanguage(value) {
+  const text = normalizeLooseText(value);
+  if (!text) return "id";
+
+  const englishWords = [
+    "hello", "hi", "thanks", "thank", "please", "what", "who", "why", "when", "where", "how",
+    "does", "do", "did", "is", "are", "can", "could", "would", "tell", "explain", "summarize",
+    "summary", "speaker", "guest", "host", "topic", "about", "discussed", "said", "mean",
+    "meaning", "episode", "podcast", "watch"
+  ];
+  const indonesianWords = [
+    "halo", "hai", "terima", "makasih", "tolong", "apa", "siapa", "kenapa", "mengapa",
+    "bagaimana", "gimana", "jelaskan", "ringkas", "ringkasan", "narasumber", "pembicara",
+    "siniar", "bahas", "dibahas", "dibilang", "disampaikan", "episode", "tonton"
+  ];
+
+  const englishScore = scoreLanguageWords(text, englishWords);
+  const indonesianScore = scoreLanguageWords(text, indonesianWords);
+  return englishScore > indonesianScore ? "en" : "id";
+}
+
+function scoreLanguageWords(text, words) {
+  return words.reduce((score, word) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(word)}\\b`, "u");
+    return score + (pattern.test(text) ? 1 : 0);
+  }, 0);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function missingInfoMessageForLanguage(language) {
+  return language === "en"
+    ? "That information is not available for this episode."
+    : MISSING_INFO_MESSAGE;
+}
+
+function getUtilityAnswer(question, language = "id") {
   const text = String(question || "")
     .trim()
     .toLowerCase()
@@ -569,12 +608,20 @@ function getUtilityAnswer(question) {
 
   const hasGreeting = /\b(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|assalamualaikum|permisi)\b/u.test(text);
   const asksWellbeing = /\b(apa kabar|kabarmu|kabar|sehat|lagi apa)\b/u.test(text);
+  const answersEnglish = language === "en";
+
   if (hasGreeting && asksWellbeing) {
+    if (answersEnglish) {
+      return "Welcome. I am well and ready to help. Please ask about this episode; I will answer briefly, politely, and clearly.";
+    }
     return "Selamat datang. Kabar saya baik dan siap membantu. Silakan tanyakan isi episode; saya akan menjawab dengan singkat, sopan, dan informatif berdasarkan data.";
   }
 
   const greetingOnly = /^(halo|hallo|hai|hi|hello|pagi|siang|sore|malam|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|permisi|met pagi|met siang|met sore|met malam)$/u;
   if (greetingOnly.test(text)) {
+    if (answersEnglish) {
+      return "Welcome. Please ask a question about this episode. I can help summarize it, explain the context, or clarify terms discussed.";
+    }
     return "Selamat datang. Silakan ajukan pertanyaan tentang episode ini. Saya bisa membantu dengan jawaban ringkas, menjelaskan konteks, atau menjawab istilah yang dibahas.";
   }
 
@@ -584,7 +631,15 @@ function getUtilityAnswer(question) {
   }
 
   const identityOnly = /^(siapa kamu|kamu siapa|kamu apa|apa kamu|kamu ini apa|kamu itu apa|apa kamu ini|apa kamu itu|ini apa|chatbot apa|chatbot ini apa|apa ini|dia apa|ini bot apa|bot apa ini|bot ini apa|botnya apa|ini chatbot apa|asisten apa|asisten ini apa|asisten apa ini)$/u;
-  if (identityOnly.test(text)) {
+  const identityOnlyEnglish = /^(who are you|what are you|what is this|what can you do|what is this bot|what is this chatbot|what kind of assistant are you|what are your capabilities)$/u;
+  if (identityOnly.test(text) || identityOnlyEnglish.test(text)) {
+    if (answersEnglish) {
+      return [
+        "I am a conversation assistant for Kompas podcasts.",
+        "My role is to read the available episode information and present short, polite, easy-to-understand answers.",
+        "I do not search the internet or add facts beyond the episode material."
+      ].join(" ");
+    }
     return [
       "Saya asisten percakapan untuk siniar Kompas.",
       "Tugas saya membaca data episode yang tersedia, lalu menyajikannya dalam jawaban singkat, sopan, dan mudah dipahami.",
@@ -594,16 +649,32 @@ function getUtilityAnswer(question) {
 
   const thanksOnly = /^(terima kasih|makasih|thanks|thank you|oke|ok|sip|baik|mantap|siap|nice|bagus)$/u;
   if (thanksOnly.test(text)) {
+    if (answersEnglish) {
+      return "You are welcome. Please continue if there is another part of the episode you would like to understand.";
+    }
     return "Sama-sama. Silakan lanjutkan bila ada bagian episode yang ingin dipahami lebih jauh.";
   }
 
   const apologyOnly = /^(maaf|sorry|maaf ya|maaf tadi salah|sori)$/u;
   if (apologyOnly.test(text)) {
+    if (answersEnglish) {
+      return "No problem. Please continue with your question; I will help answer based on the available episode material.";
+    }
     return "Tidak apa-apa. Silakan lanjutkan pertanyaannya; saya akan membantu menjawab berdasarkan data episode yang tersedia.";
   }
 
   const helpOnly = /^(bantuan|help|apa yang bisa kamu jawab|kamu bisa apa|dia bisa apa|bisa apa|bisa ngapain|apa kemampuannya|kemampuannya apa|apa kemampuanmu|apa fiturmu|fiturnya apa|fungsinya apa|gunanya apa|cara pakai|mau tanya apa|contoh pertanyaan|aku bisa tanya apa|saya bisa tanya apa)$/u;
   if (helpOnly.test(text)) {
+    if (answersEnglish) {
+      return [
+        "I can help answer questions about this episode.",
+        "- The episode title and podcast name.",
+        "- The speaker, guest, and host.",
+        "- A summary, main points, and why the episode matters.",
+        "- Terms or context available in the episode material.",
+        "- The link to watch the episode."
+      ].join("\n");
+    }
     return [
       "Saya dapat membantu menjawab pertanyaan tentang episode ini.",
       "- Judul episode dan nama siniar.",
@@ -616,6 +687,9 @@ function getUtilityAnswer(question) {
 
   const unsupportedChatOnly = /^(cerita dong|ngobrol dong|temani aku|ayo ngobrol|boleh ngobrol|aku bosan|lucu dong|kasih jokes|bercanda dong)$/u;
   if (unsupportedChatOnly.test(text)) {
+    if (answersEnglish) {
+      return "I can respond politely to light conversation. For deeper information, please ask about the episode or the topic discussed.";
+    }
     return "Saya dapat merespons percakapan ringan secara sopan. Untuk informasi lebih mendalam, silakan ajukan pertanyaan tentang episode atau topik yang dibahas.";
   }
 
@@ -1077,11 +1151,20 @@ function truncatePoint(value, maxLength = 180) {
   return `${truncated}...`;
 }
 
-function makeMissingInfoAnswer(rows = [], podcast = {}) {
+function makeMissingInfoAnswer(rows = [], podcast = {}, language = "id") {
   const podcastName = findAnswerByTopic(rows, "nama siniar") || podcast.title || podcast.name || "siniar ini";
   const episodeTitle = findAnswerByTopic(rows, "judul");
   const summary = findAnswerByTopic(rows, "ringkasan isi siniar") || findAnswerByTopic(rows, "deskripsi episode");
   const shortSummary = summarizeForFallback(summary);
+
+  if (language === "en") {
+    return [
+      `Sorry, that information is not available for this ${podcastName} episode.`,
+      episodeTitle ? `- This episode is titled "${episodeTitle}".` : "",
+      shortSummary ? `- Brief context: ${shortSummary}` : "",
+      "- Please ask another question about this episode."
+    ].filter(Boolean).join("\n");
+  }
 
   return [
     `Maaf, informasi itu belum tersedia di data episode ${podcastName}.`,
@@ -1096,7 +1179,11 @@ function isMissingInfoAnswer(value) {
   return text.includes("informasi tersebut belum tersedia di data spreadsheet") ||
     text.includes("informasi itu belum tersedia di data spreadsheet") ||
     text.includes("informasi tersebut belum tersedia di data episode") ||
-    text.includes("informasi itu belum tersedia di data episode");
+    text.includes("informasi itu belum tersedia di data episode") ||
+    text.includes("that information is not available for this episode") ||
+    text.includes("that information is not available in this episode") ||
+    text.includes("information is not available for this episode") ||
+    text.includes("information is not available in this episode");
 }
 
 function summarizeForFallback(value) {
@@ -1177,13 +1264,15 @@ function limitText(value, maxChars) {
   return `${text.slice(0, Math.max(0, maxChars - 3)).trim()}...`;
 }
 
-async function askOpenAI(question, rows, podcast, draftAnswer) {
-  const text = await createOpenAIResponse(question, rows, podcast, MODEL, draftAnswer);
+async function askOpenAI(question, rows, podcast, draftAnswer, answerLanguage = "id") {
+  const text = await createOpenAIResponse(question, rows, podcast, MODEL, draftAnswer, answerLanguage);
   return { text, model: MODEL };
 }
 
-async function createOpenAIResponse(question, rows, podcast, model, draftAnswer) {
+async function createOpenAIResponse(question, rows, podcast, model, draftAnswer, answerLanguage = "id") {
   const context = formatOpenAIContext(rows, podcast);
+  const responseLanguageLabel = answerLanguage === "en" ? "English" : "Bahasa Indonesia";
+  const missingInfoMessage = missingInfoMessageForLanguage(answerLanguage);
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -1203,8 +1292,11 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
               text: [
                 "Anda adalah chatbot editorial Kompas.id untuk siniar.",
                 "Tugas Anda menjawab dengan natural berdasarkan draf jawaban, konteks data episode, dan transkrip jika tersedia.",
+                "Jawab dalam bahasa yang sama dengan pertanyaan pengguna.",
+                "Jika pengguna bertanya dalam bahasa Inggris, jawab dalam bahasa Inggris yang sopan, natural, informatif, dan ringkas.",
+                "Jika pengguna bertanya dalam bahasa Indonesia, jawab dalam bahasa Indonesia yang sopan, natural, informatif, dan ringkas.",
                 "Jangan membuat jawaban baru di luar draf dan konteks data episode.",
-                `Jika draf atau konteks tidak menjawab pertanyaan pengguna, jawab persis: ${MISSING_INFO_MESSAGE}`,
+                `Jika draf atau konteks tidak menjawab pertanyaan pengguna, jawab persis: ${missingInfoMessage}`,
                 "Jangan mencari informasi di internet.",
                 "Jangan mengarang nama, tanggal, angka, kutipan, atau kesimpulan.",
                 "Jangan menambahkan interpretasi seperti penyebab, dampak, atau opini jika tidak tertulis jelas di data.",
@@ -1212,7 +1304,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 "Jika ada konteks bertopik transkrip, isi lengkap, timestamp, atau time stamp, baca dan gunakan konteks itu untuk memahami isi pembicaraan.",
                 "Gunakan karakter pembawa berita televisi: sangat sopan, ramah, informatif, tenang, dan to the point.",
                 "Jawablah seperti manusia yang memahami pertanyaan, bukan seperti template sistem.",
-                "Jika pertanyaan pengguna santai atau tidak formal, tetap jawab dengan bahasa Indonesia yang luwes, hangat, dan profesional.",
+                "Jika pertanyaan pengguna santai atau tidak formal, tetap jawab dengan bahasa yang sama secara luwes, hangat, dan profesional.",
                 "Boleh memberi pengantar sangat singkat seperti 'Intinya,' atau 'Secara sederhana,' jika membuat jawaban lebih natural.",
                 "Utamakan jawaban cerdas yang menyarikan maksud data, bukan daftar mentah.",
                 "Jawab langsung inti pertanyaan pada kalimat pertama.",
@@ -1241,6 +1333,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
                 `Draf jawaban dari data terpilih:\n${draftAnswer}`,
                 `Konteks data episode:\n${context}`,
                 `Pertanyaan pengguna:\n${question}`,
+                `Bahasa jawaban: ${responseLanguageLabel}`,
                 "Jawab pertanyaan pengguna secara langsung. Baca konteks data episode dan transkrip terlebih dahulu. Sarikan menjadi jawaban pendek yang cerdas, natural, diplomatis, informatif, dan terasa seperti jawaban manusia. Pakai pointer pendek bila membantu. Jangan tambahkan fakta baru. Jangan menyebut istilah teknis sumber data."
               ].join("\n\n")
             }
@@ -1257,7 +1350,7 @@ async function createOpenAIResponse(question, rows, podcast, model, draftAnswer)
 
   const data = await response.json();
   const text = extractResponseText(data).trim();
-  return text || MISSING_INFO_MESSAGE;
+  return text || missingInfoMessage;
 }
 
 function extractResponseText(data) {
