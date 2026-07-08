@@ -5,6 +5,7 @@ const statusEl = document.querySelector("#status");
 const sendButton = document.querySelector("#send-button");
 const voiceButton = document.querySelector("#voice-button");
 const chatTitle = document.querySelector("#chat-title");
+const chatDeck = document.querySelector("#chat-deck");
 
 const params = new URLSearchParams(window.location.search);
 const podcastId = params.get("podcast") || "kompas-professional-mining";
@@ -13,6 +14,11 @@ const podcastNames = {
   "bongkar-data": "Bongkar Data",
   "kompas-professional-mining": "Kompas Professional Mining",
   "kompas-siniar": "Kompas Siniar"
+};
+const episodeTitles = {
+  "bongkar-data": "Kurs Dolar AS Tidak Pengaruhi Masyarakat Desa, Fakta atau Mitos?",
+  "kompas-professional-mining": "Mengurai Sengkarut Tata Kelola Batubara di Balik Insiden Byarpet Listrik",
+  "kompas-siniar": "Chatib Basri: Piala Dunia 2026 dan Catenaccio Ekonomi Indonesia"
 };
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
@@ -49,7 +55,11 @@ setupVoiceInput();
 function setPodcastTitle() {
   if (!chatTitle) return;
   const podcastName = podcastNames[podcastId] || formatPodcastName(podcastId);
-  chatTitle.textContent = `Tanya episode ${podcastName} ini`;
+  const episodeTitle = episodeTitles[podcastId] || "ini";
+  chatTitle.textContent = `Tanya ${podcastName}`;
+  if (chatDeck) {
+    chatDeck.textContent = `Temukan ringkasan episode ${episodeTitle}`;
+  }
   document.title = `${podcastName} Chatbot`;
 }
 
