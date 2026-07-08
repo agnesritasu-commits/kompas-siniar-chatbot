@@ -128,11 +128,14 @@ Ganti domain dengan URL Vercel hasil deploy.
   src="https://nama-proyek.vercel.app/?podcast=kompas-siniar&episode=utama"
   title="Chatbot Kompas Siniar"
   style="width:100%;height:720px;border:0;display:block;"
+  allow="microphone"
   loading="lazy"
 ></iframe>
 ```
 
 Untuk halaman dengan ruang vertikal lebih besar, tinggi iframe bisa dinaikkan, misalnya `900px`. Layout widget akan tetap mengisi tinggi iframe.
+
+Jika fitur pertanyaan suara dipakai di dalam iframe, atribut `allow="microphone"` wajib ada agar browser mengizinkan tombol mikrofon berjalan.
 
 ## Batasan Perilaku Chatbot
 
