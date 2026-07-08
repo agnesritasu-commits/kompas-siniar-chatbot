@@ -84,16 +84,50 @@ function formatPodcastName(value) {
     .join(" ");
 }
 
-async function submitQuestion(question) {
-  const answerLanguage = detectQuestionLanguage(question);
+function normalizeRecognizedQuestion(value) {
+  let text = String(value || "").trim();
+  if (!text) return "";
 
-  if (containsSensitiveData(question)) {
+  const replacements = [
+    [/\b(?:catib|catip|cetib|cetip|chatip|chat it|chatib)\s+(?:basri|basry|basrie)\b/giu, "Chatib Basri"],
+    [/\b(?:muhamad|muhammad|mohammad|mohamad)?\s*(?:catib|catip|cetib|cetip|chatip|chat it|chatib)\s+(?:basri|basry|basrie)\b/giu, "Muhammad Chatib Basri"],
+    [/\b(?:ef\s*ex|efeks|efek|fx|f\s*x)\s+agung(?:\s+timbul)?(?:\s+laksana)?\b/giu, "FX Agung Timbul Laksana"],
+    [/\bagung\s+timbul\s+laksana\b/giu, "FX Agung Timbul Laksana"],
+    [/\b(?:ardi|ardhy|ardy|ardhi)\s+(?:ishak|ishaq|isak)\b/giu, "Ardhi Ishak"],
+    [/\bagustina\s+(?:purwanti|purwanto|perwanti)\b/giu, "Agustina Purwanti"],
+    [/\bkarina\s+(?:isna|ishna|isnah)\s+irawan\b/giu, "Karina Isna Irawan"],
+    [/\b(?:susi|susy)\s+sartika\s+(?:rumbo|rumba|rumboh)\b/giu, "Susy Sartika Rumbo"],
+    [/\bkompas\s+(?:profesional|professional)\s+mining\b/giu, "Kompas Professional Mining"],
+    [/\bkompas\s+siniar\b/giu, "Kompas Siniar"],
+    [/\btamu\s+kita\b/giu, "Tamu Kita"],
+    [/\bbongkar\s+data\b/giu, "Bongkar Data"],
+    [/\b(?:d\s*m\s*o|di em o|dimo|demo)\b/giu, "DMO"],
+    [/\b(?:h\s*o\s*p|ha o pe|hop)\b/giu, "HOP"],
+    [/\b(?:p\s*l\s*t\s*u|pe el te u|pel tu|pltu)\b/giu, "PLTU"],
+    [/\bcatenacio\b/giu, "Catenaccio"]
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    text = text.replace(pattern, replacement);
+  }
+
+  return text
+    .replace(/\bmuhammad\s+Chatib\s+Basri\b/giu, "Muhammad Chatib Basri")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+async function submitQuestion(question) {
+  const normalizedQuestion = normalizeRecognizedQuestion(question);
+  const answerLanguage = detectQuestionLanguage(normalizedQuestion);
+
+  if (containsSensitiveData(normalizedQuestion)) {
     setStatus(privacyWarning, true);
     input.focus();
     return;
   }
 
-  appendMessage(question, "user");
+  appendMessage(normalizedQuestion, "user");
   input.value = "";
   resizeInput();
   setLoading(true);
@@ -106,7 +140,7 @@ async function submitQuestion(question) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        question,
+        question: normalizedQuestion,
         podcastId,
         episodeId,
         history: conversationHistory.slice(-6)
@@ -121,7 +155,7 @@ async function submitQuestion(question) {
     }
 
     appendMessage(data.answer || "Informasi tersebut belum tersedia di data episode ini.", "bot", data.sources || [], answerLanguage);
-    rememberTurn("user", question);
+    rememberTurn("user", normalizedQuestion);
     rememberTurn("assistant", data.answer || "", data.sources || []);
     setStatus(data.mode === "fallback" ? "Jawaban disusun dari data episode yang tersedia." : "");
   } catch (error) {
