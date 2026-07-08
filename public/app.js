@@ -4,10 +4,16 @@ const messages = document.querySelector("#messages");
 const statusEl = document.querySelector("#status");
 const sendButton = document.querySelector("#send-button");
 const voiceButton = document.querySelector("#voice-button");
+const chatTitle = document.querySelector("#chat-title");
 
 const params = new URLSearchParams(window.location.search);
 const podcastId = params.get("podcast") || "kompas-professional-mining";
 const episodeId = params.get("episode") || "";
+const podcastNames = {
+  "bongkar-data": "Bongkar Data",
+  "kompas-professional-mining": "Kompas Professional Mining",
+  "kompas-siniar": "Kompas Siniar"
+};
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const phonePattern = /(?:\+?\d[\s().-]?){8,}\d/;
@@ -18,6 +24,8 @@ const canRecognizeSpeech = Boolean(SpeechRecognition);
 const canSpeak = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
 let recognition = null;
 let isListening = false;
+
+setPodcastTitle();
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -37,6 +45,21 @@ input.addEventListener("keydown", (event) => {
 });
 
 setupVoiceInput();
+
+function setPodcastTitle() {
+  if (!chatTitle) return;
+  const podcastName = podcastNames[podcastId] || formatPodcastName(podcastId);
+  chatTitle.textContent = `Tanya episode ${podcastName} ini`;
+  document.title = `${podcastName} Chatbot`;
+}
+
+function formatPodcastName(value) {
+  return String(value || "siniar")
+    .split(/[-_\s]+/u)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 async function submitQuestion(question) {
   if (containsSensitiveData(question)) {
