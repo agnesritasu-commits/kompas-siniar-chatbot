@@ -59,7 +59,7 @@ function setPodcastTitle() {
   if (!chatTitle) return;
   const podcastName = podcastNames[podcastId] || formatPodcastName(podcastId);
   const episodeTitle = episodeTitles[podcastId] || "ini";
-  chatTitle.textContent = `Kompas Siniar ${podcastName}`;
+  chatTitle.textContent = `Kompas Siniar "${podcastName}"`;
   if (chatDeck) {
     chatDeck.textContent = `Tanya episode "${episodeTitle}"`;
   }
