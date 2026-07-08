@@ -235,7 +235,7 @@ function createMessageAudioTools(text, language = "id") {
 
 function speakText(text, button, language = "id") {
   const cleanText = normalizeSpeechText(text);
-  const chunks = splitTextForSpeech(cleanText);
+  const chunks = buildSpeechChunks(cleanText, language);
   if (!chunks.length || !canSpeak) return;
 
   if (button.classList.contains("audio-button--active")) {
@@ -259,11 +259,13 @@ function speakSpeechChunk(chunks, language, button) {
     return;
   }
 
-  const locale = speechLocaleForLanguage(language);
-  const utterance = new SpeechSynthesisUtterance(chunks.shift());
+  const chunk = chunks.shift();
+  const chunkLanguage = chunk.language || language;
+  const locale = speechLocaleForLanguage(chunkLanguage);
+  const utterance = new SpeechSynthesisUtterance(chunk.text);
   utterance.lang = locale;
   utterance.voice = selectSpeechVoice(locale);
-  utterance.rate = language === "en" ? 0.92 : 0.9;
+  utterance.rate = chunkLanguage === "en" ? 0.92 : 0.9;
   utterance.pitch = 1;
   utterance.volume = 1;
 
@@ -311,6 +313,81 @@ function countLanguageMatches(text, words) {
 
 function speechLocaleForLanguage(language) {
   return language === "en" ? "en-US" : "id-ID";
+}
+
+function buildSpeechChunks(text, language = "id") {
+  const baseChunks = splitTextForSpeech(text).map((chunk) => ({
+    text: chunk,
+    language
+  }));
+
+  if (language !== "en") return baseChunks;
+
+  const indonesianTerms = getIndonesianSpeechTerms();
+  return baseChunks
+    .flatMap((chunk) => splitChunkByIndonesianTerms(chunk.text, indonesianTerms))
+    .filter((chunk) => chunk.text);
+}
+
+function getIndonesianSpeechTerms() {
+  return Array.from(new Set([
+    "Kompas Siniar",
+    ...Object.values(podcastNames),
+    ...Object.values(episodeTitles)
+  ]))
+    .map((term) => String(term || "").trim())
+    .filter((term) => term.length > 2)
+    .sort((a, b) => b.length - a.length);
+}
+
+function splitChunkByIndonesianTerms(text, terms) {
+  const chunks = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const match = findNextTermMatch(text, terms, cursor);
+
+    if (!match) {
+      chunks.push({
+        text: text.slice(cursor).trim(),
+        language: "en"
+      });
+      break;
+    }
+
+    if (match.index > cursor) {
+      chunks.push({
+        text: text.slice(cursor, match.index).trim(),
+        language: "en"
+      });
+    }
+
+    chunks.push({
+      text: text.slice(match.index, match.index + match.term.length).trim(),
+      language: "id"
+    });
+    cursor = match.index + match.term.length;
+  }
+
+  return chunks.filter((chunk) => chunk.text);
+}
+
+function findNextTermMatch(text, terms, startIndex) {
+  const lowerText = text.toLowerCase();
+  let bestMatch = null;
+
+  for (const term of terms) {
+    const index = lowerText.indexOf(term.toLowerCase(), startIndex);
+    if (index === -1) continue;
+
+    if (!bestMatch ||
+      index < bestMatch.index ||
+      (index === bestMatch.index && term.length > bestMatch.term.length)) {
+      bestMatch = { index, term };
+    }
+  }
+
+  return bestMatch;
 }
 
 function setupSpeechVoices() {
