@@ -302,6 +302,10 @@ button svg {
   background: var(--gold-hover);
 }
 
+.voice-button--unsupported {
+  opacity: 0.8;
+}
+
 .voice-button--listening {
   background: var(--danger);
   color: var(--white);

@@ -561,9 +561,13 @@ function setupVoiceInput() {
   if (!voiceButton) return;
 
   if (!canRecognizeSpeech) {
-    voiceButton.disabled = true;
     voiceButton.title = "Input suara belum didukung browser ini.";
     voiceButton.setAttribute("aria-label", "Input suara belum didukung browser ini");
+    voiceButton.classList.add("voice-button--unsupported");
+    voiceButton.addEventListener("click", () => {
+      setStatus("Input suara belum didukung browser ini. Coba gunakan Chrome atau Edge, atau ketik pertanyaan.", true);
+      input.focus();
+    });
     return;
   }
 
@@ -590,18 +594,18 @@ function setupVoiceInput() {
   });
 
   recognition.addEventListener("end", () => {
-    isListening = false;
-    voiceButton.classList.remove("voice-button--listening");
-    voiceButton.setAttribute("aria-label", "Ajukan pertanyaan dengan suara");
+    resetVoiceButton();
     if (!statusEl.classList.contains("status--error")) {
       setStatus("");
     }
   });
 
-  recognition.addEventListener("error", () => {
-    isListening = false;
-    voiceButton.classList.remove("voice-button--listening");
-    setStatus("Suara belum terbaca. Coba ulangi atau ketik pertanyaan.", true);
+  recognition.addEventListener("error", (event) => {
+    resetVoiceButton();
+    const message = event.error === "not-allowed" || event.error === "service-not-allowed"
+      ? "Mikrofon belum diizinkan. Jika bot dibuka lewat iframe, pastikan iframe memakai allow=\"microphone\"."
+      : "Suara belum terbaca. Coba ulangi atau ketik pertanyaan.";
+    setStatus(message, true);
   });
 
   voiceButton.addEventListener("click", () => {
@@ -615,8 +619,28 @@ function setupVoiceInput() {
     voiceButton.classList.add("voice-button--listening");
     voiceButton.setAttribute("aria-label", "Hentikan rekaman suara");
     recognition.lang = getRecognitionLanguage();
-    recognition.start();
+
+    try {
+      recognition.start();
+    } catch (error) {
+      resetVoiceButton();
+      setStatus(getVoiceStartErrorMessage(error), true);
+    }
   });
+}
+
+function resetVoiceButton() {
+  isListening = false;
+  voiceButton.classList.remove("voice-button--listening");
+  voiceButton.setAttribute("aria-label", "Ajukan pertanyaan dengan suara");
+}
+
+function getVoiceStartErrorMessage(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  if (message.includes("permission") || message.includes("not-allowed") || message.includes("denied")) {
+    return "Mikrofon belum diizinkan. Jika bot dibuka lewat iframe, pastikan iframe memakai allow=\"microphone\".";
+  }
+  return "Mikrofon belum bisa dimulai. Coba muat ulang halaman atau ketik pertanyaan.";
 }
 
 function getRecognitionLanguage() {
