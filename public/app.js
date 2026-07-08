@@ -13,12 +13,22 @@ const episodeId = params.get("episode") || "";
 const podcastNames = {
   "bongkar-data": "Bongkar Data",
   "kompas-professional-mining": "Kompas Professional Mining",
-  "kompas-siniar": "Kompas Siniar"
+  "kompas-siniar": "Tamu Kita"
 };
 const episodeTitles = {
   "bongkar-data": "Kurs Dolar AS Tidak Pengaruhi Masyarakat Desa, Fakta atau Mitos?",
   "kompas-professional-mining": "Mengurai Sengkarut Tata Kelola Batubara di Balik Insiden Byarpet Listrik",
   "kompas-siniar": "Chatib Basri: Piala Dunia 2026 dan Catenaccio Ekonomi Indonesia"
+};
+const podcastSpeechTexts = {
+  "bongkar-data": "Bongkar Data",
+  "kompas-professional-mining": "Kompas Profesional Mining",
+  "kompas-siniar": "Tamu Kita"
+};
+const episodeSpeechTexts = {
+  "bongkar-data": "Kurs Dolar Amerika Serikat Tidak Pengaruhi Masyarakat Desa, Fakta atau Mitos?",
+  "kompas-professional-mining": "Mengurai Sengkarut Tata Kelola Batu Bara di Balik Insiden Byarpet Listrik",
+  "kompas-siniar": "Chatib Basri: Piala Dunia dua ribu dua puluh enam dan Catenaccio Ekonomi Indonesia"
 };
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
@@ -330,14 +340,28 @@ function buildSpeechChunks(text, language = "id") {
 }
 
 function getIndonesianSpeechTerms() {
-  return Array.from(new Set([
-    "Kompas Siniar",
-    ...Object.values(podcastNames),
-    ...Object.values(episodeTitles)
-  ]))
-    .map((term) => String(term || "").trim())
-    .filter((term) => term.length > 2)
-    .sort((a, b) => b.length - a.length);
+  const terms = [
+    {
+      matchText: "Kompas Siniar",
+      speechText: "Kompas Siniar"
+    },
+    ...Object.keys(podcastNames).map((id) => ({
+      matchText: podcastNames[id],
+      speechText: podcastSpeechTexts[id] || podcastNames[id]
+    })),
+    ...Object.keys(episodeTitles).map((id) => ({
+      matchText: episodeTitles[id],
+      speechText: episodeSpeechTexts[id] || episodeTitles[id]
+    }))
+  ];
+
+  return terms
+    .map((term) => ({
+      matchText: String(term.matchText || "").trim(),
+      speechText: String(term.speechText || term.matchText || "").trim()
+    }))
+    .filter((term) => term.matchText.length > 2)
+    .sort((a, b) => b.matchText.length - a.matchText.length);
 }
 
 function splitChunkByIndonesianTerms(text, terms) {
@@ -363,10 +387,10 @@ function splitChunkByIndonesianTerms(text, terms) {
     }
 
     chunks.push({
-      text: text.slice(match.index, match.index + match.term.length).trim(),
+      text: match.speechText,
       language: "id"
     });
-    cursor = match.index + match.term.length;
+    cursor = match.index + match.matchText.length;
   }
 
   return chunks.filter((chunk) => chunk.text);
@@ -377,13 +401,17 @@ function findNextTermMatch(text, terms, startIndex) {
   let bestMatch = null;
 
   for (const term of terms) {
-    const index = lowerText.indexOf(term.toLowerCase(), startIndex);
+    const index = lowerText.indexOf(term.matchText.toLowerCase(), startIndex);
     if (index === -1) continue;
 
     if (!bestMatch ||
       index < bestMatch.index ||
-      (index === bestMatch.index && term.length > bestMatch.term.length)) {
-      bestMatch = { index, term };
+      (index === bestMatch.index && term.matchText.length > bestMatch.matchText.length)) {
+      bestMatch = {
+        index,
+        matchText: term.matchText,
+        speechText: term.speechText
+      };
     }
   }
 
