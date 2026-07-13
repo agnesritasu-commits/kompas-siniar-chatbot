@@ -94,7 +94,7 @@ export default async function handler(req, res) {
     });
     const relevantRows = (directAnswer?.rows?.length ? directAnswer.rows : rankedRows).slice(0, MAX_CONTEXT_ROWS);
 
-    if (!directAnswer && !relevantRows.length && !process.env.OPENAI_API_KEY) {
+    if (!directAnswer && !personContext && !relevantRows.length && !process.env.OPENAI_API_KEY) {
       return res.status(200).json({
         answer: makeMissingInfoAnswer(filteredRows, podcast, answerLanguage),
         mode: "fallback",
@@ -102,9 +102,12 @@ export default async function handler(req, res) {
       });
     }
 
-    const fallbackAnswer = directAnswer?.text || (relevantRows.length
-      ? makeFallbackAnswer(relevantRows, filteredRows, personContext)
-      : missingInfoMessageForLanguage(answerLanguage));
+    const fallbackAnswer = directAnswer?.text ||
+      (personContext
+        ? makeFallbackAnswer(relevantRows, filteredRows, personContext)
+        : relevantRows.length
+          ? makeFallbackAnswer(relevantRows, filteredRows, personContext)
+          : missingInfoMessageForLanguage(answerLanguage));
     const contextRows = buildOpenAIContextRows(directAnswer?.rows || relevantRows, filteredRows);
     const sourceRows = directAnswer?.rows?.length ? directAnswer.rows : relevantRows;
 
@@ -315,17 +318,27 @@ function normalizeQuestionEntities(question, rows = []) {
 }
 
 function getFollowUpContext(question, history, rows = []) {
-  const text = normalizeText(question);
+  const text = normalizeLooseText(question);
   const pronounQuestion = /\b(dia|ia|beliau|orang itu|tokoh itu|narasumber itu|host itu)\b/u.test(text);
   if (!pronounQuestion || !history.length) return null;
 
   const hostName = findAnswerByTopic(rows, "nama host");
   const speakerName = formatList(findAnswersByTopicBase(rows, "nama narasumber"));
+  const speakerEntries = getPersonEntries(rows, "narasumber");
   const recentAssistant = [...history].reverse().find((item) => item.role === "assistant");
   const recentSources = recentAssistant?.sources || [];
-  const sourceTopics = recentSources.map((source) => normalizeText(source.topic)).join(" ");
-  const firstSourceTopic = normalizeText(recentSources[0]?.topic || "");
+  const sourceTopics = recentSources.map((source) => normalizeLooseText(source.topic)).join(" ");
+  const firstSourceTopic = normalizeLooseText(recentSources[0]?.topic || "");
   const recentAnswer = recentAssistant?.content || "";
+  const mentionedSpeakers = speakerEntries.filter((entry) => personNameAppearsInText(entry.name, recentAnswer));
+
+  if (mentionedSpeakers.length > 1 && !/\bnarasumber itu\b/u.test(text)) {
+    return {
+      target: "clarify_narasumber",
+      label: formatList(mentionedSpeakers.map((entry) => entry.name))
+    };
+  }
+
   const mentionedPerson = extractPersonName(recentAnswer, rows);
 
   if ((hostName && mentionedPerson === hostName) || /\bhost itu\b/u.test(text)) {
@@ -606,10 +619,10 @@ function getDirectPersonContext(question, rows) {
 
   const queryTokens = tokenize(question);
   const candidates = [
-    {
+    ...getPersonEntries(rows, "narasumber").map((entry) => ({
       target: "narasumber",
-      name: formatList(findAnswersByTopicBase(rows, "nama narasumber"))
-    },
+      name: entry.name
+    })),
     {
       target: "host",
       name: findAnswerByTopic(rows, "nama host")
@@ -1118,12 +1131,16 @@ function normalizeToken(token) {
 }
 
 function makeFallbackAnswer(rows, allRows = [], followUpContext = null) {
+  if (followUpContext?.target === "clarify_narasumber") {
+    return `Ada lebih dari satu narasumber: ${followUpContext.label}. Yang Anda maksud siapa?`;
+  }
+
   if (followUpContext?.target === "narasumber") {
-    return makePersonAnswer(allRows, "narasumber");
+    return makePersonAnswer(allRows, "narasumber", followUpContext.label);
   }
 
   if (followUpContext?.target === "host") {
-    return makePersonAnswer(allRows, "host");
+    return makePersonAnswer(allRows, "host", followUpContext.label);
   }
 
   const answers = rows
@@ -1134,13 +1151,14 @@ function makeFallbackAnswer(rows, allRows = [], followUpContext = null) {
   return makeFriendlyDataAnswer(answers[0]);
 }
 
-function makePersonAnswer(rows, type) {
-  const name = type === "narasumber"
-    ? formatList(findAnswersByTopicBase(rows, "nama narasumber"))
-    : findAnswerByTopic(rows, `nama ${type}`);
-  const profile = type === "narasumber"
-    ? findAnswersByTopicBase(rows, "profil narasumber").join(" ")
-    : findAnswerByTopic(rows, `profil ${type}`);
+function makePersonAnswer(rows, type, label = "") {
+  const entries = getPersonEntries(rows, type);
+  const selectedEntry = label
+    ? entries.find((entry) => personNameAppearsInText(entry.name, label) || personNameAppearsInText(label, entry.name))
+    : null;
+  const selectedEntries = selectedEntry ? [selectedEntry] : entries;
+  const name = formatList(selectedEntries.map((entry) => entry.name));
+  const profile = selectedEntries.map((entry) => entry.profile).filter(Boolean).join(" ");
   const reason = type === "narasumber" ? findAnswerByTopic(rows, "alasan pemilihan narasumber") : "";
 
   if (!name && !profile && !reason) return MISSING_INFO_MESSAGE;
@@ -1157,6 +1175,38 @@ function makePersonAnswer(rows, type) {
     name ? `${name} adalah host dalam episode ini.` : "",
     profile || ""
   ].filter(Boolean).join(" ");
+}
+
+function getPersonEntries(rows, type) {
+  if (type !== "narasumber") {
+    return [{
+      name: findAnswerByTopic(rows, `nama ${type}`),
+      profile: findAnswerByTopic(rows, `profil ${type}`)
+    }].filter((entry) => entry.name || entry.profile);
+  }
+
+  const nameRows = rows.filter((row) => normalizeTopicLoose(row.topic).startsWith("nama narasumber"));
+  return nameRows.map((row) => {
+    const suffix = normalizeTopicLoose(row.topic).replace(/^nama narasumber/u, "").trim();
+    const profile = rows.find((candidate) => {
+      const topic = normalizeTopicLoose(candidate.topic);
+      return suffix ? topic === `profil narasumber ${suffix}` : topic === "profil narasumber";
+    })?.answer || "";
+
+    return {
+      name: row.answer || "",
+      profile
+    };
+  }).filter((entry) => entry.name || entry.profile);
+}
+
+function normalizeTopicLoose(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function findAnswerByTopic(rows, topic) {
