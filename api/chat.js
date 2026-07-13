@@ -85,7 +85,7 @@ export default async function handler(req, res) {
     const rows = normalizeSpreadsheetRows(await fetchSpreadsheetRows(podcast.csvUrl), podcast.id);
     const filteredRows = filterRows(rows, podcast.id, episodeId);
     const normalizedQuestion = normalizeQuestionEntities(question, filteredRows);
-    const followUpContext = getFollowUpContext(normalizedQuestion, history);
+    const followUpContext = getFollowUpContext(normalizedQuestion, history, filteredRows);
     const personContext = followUpContext || getDirectPersonContext(normalizedQuestion, filteredRows);
     const directAnswer = getDirectDataAnswer(normalizedQuestion, filteredRows);
     const rankingQuestion = expandQuestionForSearch(resolveFollowUpQuestion(normalizedQuestion, personContext));
@@ -314,43 +314,45 @@ function normalizeQuestionEntities(question, rows = []) {
   return text.replace(/\s+/gu, " ").trim();
 }
 
-function getFollowUpContext(question, history) {
+function getFollowUpContext(question, history, rows = []) {
   const text = normalizeText(question);
   const pronounQuestion = /\b(dia|ia|beliau|orang itu|tokoh itu|narasumber itu|host itu)\b/u.test(text);
   if (!pronounQuestion || !history.length) return null;
 
+  const hostName = findAnswerByTopic(rows, "nama host");
+  const speakerName = formatList(findAnswersByTopicBase(rows, "nama narasumber"));
   const recentAssistant = [...history].reverse().find((item) => item.role === "assistant");
   const recentSources = recentAssistant?.sources || [];
   const sourceTopics = recentSources.map((source) => normalizeText(source.topic)).join(" ");
   const firstSourceTopic = normalizeText(recentSources[0]?.topic || "");
   const recentAnswer = recentAssistant?.content || "";
-  const mentionedPerson = extractPersonName(recentAnswer);
+  const mentionedPerson = extractPersonName(recentAnswer, rows);
 
-  if (mentionedPerson === "FX Agung Timbul Laksana" || /\bhost itu\b/u.test(text)) {
+  if ((hostName && mentionedPerson === hostName) || /\bhost itu\b/u.test(text)) {
     return {
       target: "host",
-      label: mentionedPerson || "FX Agung Timbul Laksana"
+      label: mentionedPerson || hostName || "host"
     };
   }
 
-  if (mentionedPerson === "Muhammad Chatib Basri" || /\bnarasumber itu\b/u.test(text)) {
+  if ((speakerName && mentionedPerson === speakerName) || /\bnarasumber itu\b/u.test(text)) {
     return {
       target: "narasumber",
-      label: mentionedPerson || "Muhammad Chatib Basri"
+      label: mentionedPerson || speakerName || "narasumber"
     };
   }
 
   if (firstSourceTopic.includes("host") || (sourceTopics.includes("host") && !sourceTopics.includes("narasumber"))) {
     return {
       target: "host",
-      label: "FX Agung Timbul Laksana"
+      label: hostName || "host"
     };
   }
 
   if (firstSourceTopic.includes("narasumber") || sourceTopics.includes("narasumber")) {
     return {
       target: "narasumber",
-      label: "Muhammad Chatib Basri"
+      label: speakerName || "narasumber"
     };
   }
 
@@ -628,11 +630,31 @@ function getDirectPersonContext(question, rows) {
   };
 }
 
-function extractPersonName(value) {
+function extractPersonName(value, rows = []) {
   const text = String(value || "");
+  const candidates = [
+    ...findAnswersByTopicBase(rows, "nama narasumber"),
+    findAnswerByTopic(rows, "nama host")
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (personNameAppearsInText(candidate, text)) return candidate;
+  }
+
   if (/(?:Muhammad\s+)?Chatib(?:\s+Basri)?/i.test(text)) return "Muhammad Chatib Basri";
   if (/FX Agung/i.test(text)) return "FX Agung Timbul Laksana";
   return "";
+}
+
+function personNameAppearsInText(name, text) {
+  const normalizedText = normalizeLooseText(text);
+  const normalizedName = normalizeLooseText(name);
+  if (!normalizedName || normalizedText.includes(normalizedName)) return Boolean(normalizedName);
+
+  const tokens = [...tokenize(name)];
+  const meaningfulTokens = tokens.filter((token) => token.length > 3);
+  return meaningfulTokens.length >= 2 &&
+    meaningfulTokens.every((token) => normalizedText.includes(token));
 }
 
 function detectQuestionLanguage(value) {
