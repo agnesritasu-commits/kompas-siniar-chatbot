@@ -121,7 +121,8 @@ export default async function handler(req, res) {
 
     try {
       const answer = await askOpenAI(normalizedQuestion, contextRows, podcast, fallbackAnswer, answerLanguage);
-      const finalAnswer = isMissingInfoAnswer(answer.text)
+      const openAiMissingInfo = isMissingInfoAnswer(answer.text);
+      const finalAnswer = openAiMissingInfo
         ? makeMissingInfoAnswer(filteredRows, podcast, answerLanguage)
         : answer.text || fallbackAnswer;
 
@@ -129,7 +130,8 @@ export default async function handler(req, res) {
         answer: finalAnswer,
         mode: "openai",
         model: answer.model,
-        sources: isMissingInfoAnswer(answer.text) ? [] : formatSources(sourceRows)
+        answerSource: openAiMissingInfo ? "openai_missing_info" : "openai",
+        sources: openAiMissingInfo ? [] : formatSources(sourceRows)
       });
     } catch (error) {
       console.error("OpenAI unavailable, using fallback:", error);
